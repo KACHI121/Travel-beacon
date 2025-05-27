@@ -1,33 +1,19 @@
-export interface Location {
-  id: number;
-  name: string;  type: 'lodge' | 'hotel' | 'restaurant' | 'fast_food';
-  image: string;
-  rating: number;
-  distance?: number; // in km
-  address: string;
-  description: string;
-  isFavorite?: boolean;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-}
-
-export interface Booking {
-  id: number;
-  locationId: number;
-  locationName: string;
-  locationType: 'lodge' | 'restaurant';
-  locationImage: string;
-  startDate: Date;
-  endDate: Date;
-  duration: number; // in days
-  guests: number;
-}
-
 export interface UserCoordinates {
   latitude: number;
   longitude: number;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  type: 'lodge' | 'hotel' | 'restaurant' | 'fast_food';
+  description: string;
+  address: string;
+  coordinates: UserCoordinates;
+  rating: number;
+  image: string;
+  distance?: number;
+  isFavorite: boolean;
 }
 
 // Map the database schema type to the Review type for consistency
