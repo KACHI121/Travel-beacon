@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Location, Booking } from '../types';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './AuthContext';
-import { toast } from '@/components/ui/use-toast';
 import { LocationService } from '@/services/LocationService';
 import { FavoritesService } from '@/services/FavoritesService';
 import { OfflineHelper } from '@/utils/offline';
 import debounce from 'lodash/debounce';
+import { toast } from '@/components/ui/use-toast';
+import { useAuth } from './AuthContext';
 
 interface LocationContextType {
   locations: Location[];
@@ -32,15 +31,6 @@ export const useLocations = () => {
   return context;
 };
 
-const fetchLocationsFromDatabase = async () => {
-  const { data, error } = await supabase.from('locations').select('*');
-  if (error) {
-    console.error('Error fetching locations:', error);
-    return [];
-  }
-  return data;
-};
-
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [locations, setLocations] = useState<Location[]>([]);
@@ -58,6 +48,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Offline mode handlers
   const handleOffline = useCallback(() => {
     setIsOffline(true);
+    // Offline caching might need adjustment as data structure changes
     const cachedLocations = OfflineHelper.getCachedLocations();
     if (cachedLocations) {
       setLocations(cachedLocations);
@@ -85,17 +76,23 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     try {
-      const fetchedLocations = await fetchLocationsFromDatabase();
+      // Fetch fresh data from Overpass API
       const coordinates = await locationService.getCurrentPosition();
-      const locationsWithDistance = locationService.addDistanceToLocations(
-        fetchedLocations,
-        coordinates
-      );
-      setLocations(locationsWithDistance);
+      const restaurants = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'restaurant');
+      const hotels = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel');
+      const fastFood = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'fast_food');
+
+      const fetchedLocations = [...restaurants, ...hotels, ...fastFood];
+      
+      // Add distance is already handled in fetchNearbyPlacesFromOSM
+      setLocations(fetchedLocations);
 
       if (user) {
+        // Note: Favorites logic might need adjustment as it was tied to Supabase IDs.
+        // OSM IDs are numbers, but might not directly correspond to Supabase IDs.
+        // A new strategy for handling favorites with OSM data is needed.
         const favoriteIds = await favoritesService.getFavorites(user.id);
-        setFavorites(locationsWithDistance.filter(loc => favoriteIds.includes(loc.id)));
+        setFavorites(fetchedLocations.filter(loc => favoriteIds.includes(loc.id)));
       }
     } catch (error) {
       console.error('Error syncing data:', error);
@@ -118,12 +115,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Cache data when it changes
   useEffect(() => {
     if (locations.length > 0) {
+      // Offline caching might need adjustment as data structure changes
       OfflineHelper.cacheLocations(locations);
     }
   }, [locations]);
 
   useEffect(() => {
     if (favorites.length > 0) {
+      // Offline caching might need adjustment as data structure changes
       OfflineHelper.cacheFavorites(favorites);
     }
   }, [favorites]);
@@ -133,10 +132,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     debounce(async () => {
       try {
         const coordinates = await locationService.getCurrentPosition();
-        const updatedLocations = locationService.addDistanceToLocations(
-          locations,
-          coordinates
-        );
+        
+        // Fetch nearby places again when location updates
+        const restaurants = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'restaurant');
+        const hotels = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel');
+        const fastFood = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'fast_food');
+
+        const updatedLocations = [...restaurants, ...hotels, ...fastFood];
+
         setLocations(updatedLocations);
         setIsOutsideZambia(!locationService.isWithinZambia(coordinates));
       } catch (error) {
@@ -148,32 +151,31 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
       }
     }, 1000),
-    [locations]
-  );
+    [locationService]
+  ); // Depend on locationService
 
   // Initialize data and set up subscriptions
   useEffect(() => {
     const initializeData = async () => {
       try {
         setIsLoading(true);
-        // Load cached locations immediately if available
-        const cachedLocations = OfflineHelper.getCachedLocations();
-        if (cachedLocations) {
-          setLocations(cachedLocations);
-        }
+        // No longer loading cached locations from Supabase structure
+        // const cachedLocations = OfflineHelper.getCachedLocations();
+        // if (cachedLocations) {
+        //   setLocations(cachedLocations);
+        // }
 
-        // Then fetch fresh data
-        const [fetchedLocations, coordinates] = await Promise.all([
-          fetchLocationsFromDatabase(),
-          locationService.getCurrentPosition()
-        ]);
+        // Fetch initial data from Overpass API based on current position
+        const coordinates = await locationService.getCurrentPosition();
         
-        const locationsWithDistance = locationService.addDistanceToLocations(
-          fetchedLocations,
-          coordinates
-        );
+        const restaurants = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'restaurant');
+        const hotels = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel');
+        const fastFood = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'fast_food');
+
+        const fetchedLocations = [...restaurants, ...hotels, ...fastFood];
         
-        setLocations(locationsWithDistance);
+        // Distance is calculated within fetchNearbyPlacesFromOSM
+        setLocations(fetchedLocations);
         setIsOutsideZambia(!locationService.isWithinZambia(coordinates));
 
         // Watch for location changes
@@ -202,7 +204,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => {
       updateUserLocation.cancel();
     };
-  }, [locationService, updateUserLocation]);
+  }, [locationService, updateUserLocation]); // Depend on locationService and updateUserLocation
 
   // Set up favorites subscription when user changes
   useEffect(() => {
@@ -214,10 +216,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       try {
         // Get initial favorites
+        // Note: This still fetches Supabase favorite IDs. Matching these to OSM IDs
+        // in the `locations` array might not work directly. A new strategy is needed.
         const favoriteIds = await favoritesService.getFavorites(user.id);
         setFavorites(locations.filter(loc => favoriteIds.includes(loc.id)));
 
         // Subscribe to favorite changes
+        // This subscription is still based on Supabase changes and might not be relevant
+        // for locations fetched from OSM. This part might need significant changes
+        // depending on how favorites are handled with external API data.
         await favoritesService.subscribeToFavorites(user.id, (locationId, isFavorite) => {
           setLocations(prevLocations =>
             prevLocations.map(location =>
@@ -252,6 +259,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setIsFavoriteLoading(true);
     try {
+      // This still uses the FavoritesService which is likely tied to Supabase.
+      // Toggling favorites for locations from OSM requires a new approach.
       const newIsFavorite = await favoritesService.toggleFavorite(user.id, locationId);
       
       setLocations(prevLocations =>
@@ -280,6 +289,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const addBooking = (booking: Omit<Booking, 'id'>) => {
+    // Booking logic is still based on the current Location and Booking types.
+    // If booking needs to work with OSM data, this might need adjustment.
     const newBooking = {
       ...booking,
       id: bookings.length > 0 ? Math.max(...bookings.map(b => b.id)) + 1 : 1

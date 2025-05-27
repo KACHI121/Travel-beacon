@@ -159,4 +159,77 @@ export class LocationService {
     const locationsWithDistance = this.addDistanceToLocations(filteredLocations, userCoordinates);
     return this.sortLocationsByProximity(locationsWithDistance, userCoordinates).slice(0, limit);
   }
+
+  private osmAmenityToLocationType(amenity: string): Location['type'] {
+    switch (amenity) {
+      case 'hotel':
+        return 'hotel';
+      case 'guest_house':
+      case 'hostel':
+        return 'lodge';
+      case 'restaurant':
+        return 'restaurant';
+      case 'fast_food':
+        return 'fast_food';
+      default:
+        return 'restaurant'; // fallback
+    }
+  }
+
+  async fetchNearbyPlacesFromOSM(
+    coordinates: UserCoordinates,
+    placeType: string,
+    radius: number = 1000
+  ): Promise<Location[]> {
+    const overpassUrl = 'https://overpass-api.de/api/interpreter';
+    
+    // Build a query that includes all relevant amenity types
+    const amenityTypes = placeType === 'lodge' 
+      ? ['hotel', 'guest_house', 'hostel']
+      : [placeType];
+
+    const amenityQueries = amenityTypes
+      .map(type => `node(around:${radius},${coordinates.latitude},${coordinates.longitude})["amenity"="${type}"];`)
+      .join('\n');
+    
+    const query = `
+      [out:json];
+      (
+        ${amenityQueries}
+      );
+      out body;
+    `;
+
+    try {
+      const response = await fetch(overpassUrl, {
+        method: 'POST',
+        body: query,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Overpass API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Map Overpass API results to your Location type
+      const locations: Location[] = data.elements.map((element: any) => ({
+        id: element.id,
+        name: element.tags.name || `Unnamed ${placeType}`,
+        type: this.osmAmenityToLocationType(element.tags.amenity),
+        description: element.tags.description || 'No description available.',
+        address: element.tags['addr:full'] || element.tags['addr:street'] || 'Address not available.',
+        image: element.tags.image || element.tags.photo || '/placeholder.svg',
+        rating: parseFloat(element.tags.stars) || Math.random() * 3 + 2, // Random rating between 2-5 if none available
+        coordinates: { latitude: element.lat, longitude: element.lon },
+        distance: this.calculateDistance(coordinates.latitude, coordinates.longitude, element.lat, element.lon),
+        isFavorite: false,
+      }));
+
+      return locations;
+    } catch (error) {
+      console.error('Error fetching nearby places from OSM:', error);
+      return [];
+    }
+  }
 }

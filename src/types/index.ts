@@ -1,7 +1,6 @@
 export interface Location {
   id: number;
-  name: string;
-  type: 'lodge' | 'restaurant';
+  name: string;  type: 'lodge' | 'hotel' | 'restaurant' | 'fast_food';
   image: string;
   rating: number;
   distance?: number; // in km
