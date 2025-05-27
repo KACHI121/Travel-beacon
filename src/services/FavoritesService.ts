@@ -2,6 +2,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Location } from '@/types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+type FavoriteCallback = (locationId: string, isFavorite: boolean) => void;
+
 /**
  * Service class for managing user favorites
  * @class FavoritesService
@@ -26,10 +28,9 @@ export class FavoritesService {
    * Initialize real-time subscription for favorites changes
    * @param userId - The current user's ID
    * @param onFavoriteChange - Callback function for favorite changes
-   */
-  async subscribeToFavorites(
+   */  async subscribeToFavorites(
     userId: string,
-    onFavoriteChange: (locationId: number, isFavorite: boolean) => void
+    onFavoriteChange: (locationId: string, isFavorite: boolean) => void
   ): Promise<void> {
     // Clean up existing subscription if any
     await this.unsubscribe();
@@ -40,8 +41,9 @@ export class FavoritesService {
         event: '*',
         schema: 'public',
         table: 'favorites',
-        filter: `user_id=eq.${userId}`      }, (payload: any) => {
-        const locationId = Number(payload.new?.location_id || payload.old?.location_id);
+        filter: `user_id=eq.${userId}`
+      }, (payload: any) => {
+        const locationId = (payload.new?.location_id || payload.old?.location_id).toString();
         const isFavorite = payload.eventType === 'INSERT';
         onFavoriteChange(locationId, isFavorite);
       })
@@ -63,18 +65,20 @@ export class FavoritesService {
    * @param userId - The user's ID
    * @returns Array of favorite location IDs
    */
-  async getFavorites(userId: string): Promise<number[]> {
-    const { data, error } = await supabase
-      .from('favorites')
-      .select('location_id')
-      .eq('user_id', userId);
+  async getFavorites(userId: string): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('location_id')
+        .eq('user_id', userId);
 
-    if (error) {
+      if (error) throw error;
+
+      return data.map(favorite => favorite.location_id.toString());
+    } catch (error) {
       console.error('Error fetching favorites:', error);
       return [];
     }
-
-    return data.map(f => f.location_id);
   }
 
   /**
@@ -114,17 +118,40 @@ export class FavoritesService {
    * @param userId - The user's ID
    * @param locationId - The location ID to toggle
    * @returns The new favorite status
-   */
-  async toggleFavorite(userId: string, locationId: number): Promise<boolean> {
-    const favorites = await this.getFavorites(userId);
-    const isFavorite = favorites.includes(locationId);
+   */  async toggleFavorite(userId: string, locationId: string): Promise<boolean> {
+    try {
+      const { data: existingFavorite, error: selectError } = await supabase
+        .from('favorites')
+        .select()
+        .eq('user_id', userId)
+        .eq('location_id', locationId)
+        .single();
 
-    if (isFavorite) {
-      await this.removeFavorite(userId, locationId);
-      return false;
-    } else {
-      await this.addFavorite(userId, locationId);
-      return true;
+      if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "not found" error
+        throw selectError;
+      }      if (existingFavorite) {
+        const { error: deleteError } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', userId)
+          .eq('location_id', locationId);
+
+        if (deleteError) throw deleteError;
+        return false;
+      } else {
+        const { error: insertError } = await supabase
+          .from('favorites')
+          .insert([{ 
+            user_id: userId, 
+            location_id: locationId 
+          }]);
+
+        if (insertError) throw insertError;
+        return true;
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      throw error;
     }
   }
 }

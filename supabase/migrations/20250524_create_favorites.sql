@@ -2,7 +2,7 @@
 CREATE TABLE favorites (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  location_id TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_user_location UNIQUE (user_id, location_id)
 );

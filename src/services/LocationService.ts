@@ -180,11 +180,10 @@ export class LocationService {
     const locationsWithDistance = this.addDistanceToLocations(filteredLocations, userCoordinates);
     return this.sortLocationsByProximity(locationsWithDistance, userCoordinates).slice(0, limit);
   }
-
   async fetchNearbyPlacesFromOSM(
     coordinates: UserCoordinates,
     placeType: string,
-    radius: number = 5000 // 5km radius
+    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 20000 : 5000 // 20km for hotels/lodges, 5km for others
   ): Promise<Location[]> {
     try {
       // Use Overpass API for more detailed POI data

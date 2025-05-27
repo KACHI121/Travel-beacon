@@ -16,6 +16,18 @@ export interface Location {
   isFavorite: boolean;
 }
 
+export interface Booking {
+  id: number;
+  locationId: string;
+  locationName: string;
+  locationType: Location['type'];
+  locationImage: string;
+  startDate: Date;
+  endDate: Date;
+  duration: number;
+  guests: number;
+}
+
 // Map the database schema type to the Review type for consistency
 import { Database } from '@/integrations/supabase/types';
 
