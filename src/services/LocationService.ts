@@ -1,4 +1,5 @@
 import { UserCoordinates, Location } from '@/types';
+import axios from 'axios';
 
 const ZAMBIA_BOUNDS = {
   latitude: { min: -18, max: -8 },
@@ -7,9 +8,29 @@ const ZAMBIA_BOUNDS = {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+interface OverpassResponse {
+  elements: Array<{
+    id: number;
+    lat: number;
+    lon: number;
+    tags: {
+      name?: string;
+      amenity?: string;
+      'addr:street'?: string;
+      'addr:city'?: string;
+      'addr:district'?: string;
+      description?: string;
+      rating?: string;
+      image?: string;
+      [key: string]: string | undefined;
+    };
+  }>;
+}
+
 export class LocationService {
   private static instance: LocationService;
   private cachedPosition: { coordinates: UserCoordinates; timestamp: number } | null = null;
+  private cachedLocations: { data: Location[]; timestamp: number } | null = null;
 
   private constructor() {}
 
@@ -160,6 +181,69 @@ export class LocationService {
     return this.sortLocationsByProximity(locationsWithDistance, userCoordinates).slice(0, limit);
   }
 
+  async fetchNearbyPlacesFromOSM(
+    coordinates: UserCoordinates,
+    placeType: string,
+    radius: number = 5000 // 5km radius
+  ): Promise<Location[]> {
+    try {
+      // Use Overpass API for more detailed POI data
+      const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      const query = `
+        [out:json][timeout:25];
+        (
+          node["amenity"="${placeType}"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+        );
+        out body;
+        >;
+        out skel qt;
+      `;
+
+      const response = await axios.post<OverpassResponse>(overpassUrl, query);
+      
+      if (!response.data || !response.data.elements) {
+        throw new Error('Invalid response from Overpass API');
+      }
+
+      const locations: Location[] = response.data.elements
+        .filter(element => element.tags && element.tags.name) // Only include places with names
+        .map(element => ({
+          id: element.id.toString(),
+          name: element.tags.name!,
+          type: this.osmAmenityToLocationType(placeType),
+          description: element.tags.description || `A ${placeType} in ${element.tags['addr:city'] || 'Zambia'}`,
+          address: this.formatOSMAddress(element.tags),
+          coordinates: {
+            latitude: element.lat,
+            longitude: element.lon
+          },
+          rating: parseFloat(element.tags.rating || '') || Math.random() * 2 + 3, // Random rating between 3-5
+          image: element.tags.image || '/placeholder.svg',
+          distance: this.calculateDistance(
+            coordinates.latitude,
+            coordinates.longitude,
+            element.lat,
+            element.lon
+          ),
+          isFavorite: false
+        }));
+
+      // Filter locations within Zambia
+      return locations.filter(location => this.isWithinZambia(location.coordinates));
+    } catch (error) {
+      console.error('Error fetching from OpenStreetMap:', error);
+      return [];
+    }
+  }
+
+  private formatOSMAddress(tags: Record<string, string | undefined>): string {
+    const parts = [];
+    if (tags['addr:street']) parts.push(tags['addr:street']);
+    if (tags['addr:city']) parts.push(tags['addr:city']);
+    if (tags['addr:district']) parts.push(tags['addr:district']);
+    return parts.length > 0 ? parts.join(', ') : 'Address not available';
+  }
+
   private osmAmenityToLocationType(amenity: string): Location['type'] {
     switch (amenity) {
       case 'hotel':
@@ -172,64 +256,7 @@ export class LocationService {
       case 'fast_food':
         return 'fast_food';
       default:
-        return 'restaurant'; // fallback
-    }
-  }
-
-  async fetchNearbyPlacesFromOSM(
-    coordinates: UserCoordinates,
-    placeType: string,
-    radius: number = 1000
-  ): Promise<Location[]> {
-    const overpassUrl = 'https://overpass-api.de/api/interpreter';
-    
-    // Build a query that includes all relevant amenity types
-    const amenityTypes = placeType === 'lodge' 
-      ? ['hotel', 'guest_house', 'hostel']
-      : [placeType];
-
-    const amenityQueries = amenityTypes
-      .map(type => `node(around:${radius},${coordinates.latitude},${coordinates.longitude})["amenity"="${type}"];`)
-      .join('\n');
-    
-    const query = `
-      [out:json];
-      (
-        ${amenityQueries}
-      );
-      out body;
-    `;
-
-    try {
-      const response = await fetch(overpassUrl, {
-        method: 'POST',
-        body: query,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Overpass API request failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      // Map Overpass API results to your Location type
-      const locations: Location[] = data.elements.map((element: any) => ({
-        id: element.id,
-        name: element.tags.name || `Unnamed ${placeType}`,
-        type: this.osmAmenityToLocationType(element.tags.amenity),
-        description: element.tags.description || 'No description available.',
-        address: element.tags['addr:full'] || element.tags['addr:street'] || 'Address not available.',
-        image: element.tags.image || element.tags.photo || '/placeholder.svg',
-        rating: parseFloat(element.tags.stars) || Math.random() * 3 + 2, // Random rating between 2-5 if none available
-        coordinates: { latitude: element.lat, longitude: element.lon },
-        distance: this.calculateDistance(coordinates.latitude, coordinates.longitude, element.lat, element.lon),
-        isFavorite: false,
-      }));
-
-      return locations;
-    } catch (error) {
-      console.error('Error fetching nearby places from OSM:', error);
-      return [];
+        return 'restaurant';
     }
   }
 }
