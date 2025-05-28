@@ -6,6 +6,7 @@ import { OfflineHelper } from '@/utils/offline';
 import debounce from 'lodash/debounce';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from './AuthContext';
+import { saveBookingToDB, fetchBookingsFromDB } from '@/services/LocationService';
 
 interface LocationContextType {
   locations: Location[];
@@ -230,6 +231,22 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     };
   }, [user, favoritesService, locations]);
 
+  useEffect(() => {
+    const loadBookings = async () => {
+      if (user) {
+        try {
+          const bookingsFromDB = await fetchBookingsFromDB(user.id);
+          setBookings(bookingsFromDB);
+        } catch (e) {
+          setBookings([]);
+        }
+      } else {
+        setBookings([]);
+      }
+    };
+    loadBookings();
+  }, [user]);
+
   const toggleFavorite = async (locationId: string) => {
     if (!user) {
       toast({
@@ -278,12 +295,16 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     }
   };
 
-  const addBooking = (booking: Omit<Booking, 'id'>) => {
+  const addBooking = async (booking: Omit<Booking, 'id'>) => {
     const newBooking = {
       ...booking,
-      id: bookings.length > 0 ? Math.max(...bookings.map(b => b.id)) + 1 : 1
+      id: bookings.length > 0 ? Math.max(...bookings.map(b => b.id)) + 1 : 1,
+      user_id: user.id
     };
     setBookings([...bookings, newBooking]);
+    try {
+      await saveBookingToDB(newBooking);
+    } catch {}
   };
 
   const cancelBooking = (bookingId: number) => {

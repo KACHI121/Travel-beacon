@@ -1,5 +1,6 @@
 import { UserCoordinates, Location } from '@/types';
 import axios from 'axios';
+import { supabase } from '@/integrations/supabase/client';
 
 const ZAMBIA_BOUNDS = {
   latitude: { min: -18, max: -8 },
@@ -183,7 +184,7 @@ export class LocationService {
   async fetchNearbyPlacesFromOSM(
     coordinates: UserCoordinates,
     placeType: string,
-    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 20000 : 5000 // 20km for hotels/lodges, 5km for others
+    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 50000 : 5000 // 50km for hotels/lodges, 5km for others
   ): Promise<Location[]> {
     try {
       // Use Overpass API for more detailed POI data
@@ -257,5 +258,17 @@ export class LocationService {
       default:
         return 'restaurant';
     }
+  }
+
+  // Add these functions to persist bookings
+  async saveBookingToDB(booking) {
+    const { error } = await supabase.from('bookings').insert([booking]);
+    if (error) throw error;
+  }
+
+  async fetchBookingsFromDB(userId) {
+    const { data, error } = await supabase.from('bookings').select('*').eq('user_id', userId);
+    if (error) throw error;
+    return data;
   }
 }
