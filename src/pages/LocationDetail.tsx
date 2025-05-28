@@ -82,7 +82,7 @@ const LocationDetail = () => {
         try {
           // Using OpenStreetMap's OSRM demo server for routing
           const response = await fetch(
-            `http://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${location.coordinates.longitude},${location.coordinates.latitude}?overview=full&geometries=geojson`
+            `https://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${location.coordinates.longitude},${location.coordinates.latitude}?overview=full&geometries=geojson`
           );
           const data = await response.json();
 
@@ -437,7 +437,7 @@ const LocationDetail = () => {
                           </div>
                           <div className="flex justify-between font-bold text-base mt-2">
                             <span>Total:</span>
-                            <span>${calculateDuration() * (location.type === 'lodge' ? 99 : 45)}</span>
+                            <span>Kw{calculateDuration() * (location.type === 'lodge' ? 99 : 45)}</span>
                           </div>
                         </div>
                       </div>

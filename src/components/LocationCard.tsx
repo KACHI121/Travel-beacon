@@ -13,6 +13,14 @@ interface LocationCardProps {
   variant?: 'small' | 'medium' | 'large';
 }
 
+const mockImages = [
+  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=400&q=80',
+];
+
 const LocationCard: React.FC<LocationCardProps> = ({ location, variant = 'medium' }) => {
   const { toggleFavorite, isFavoriteLoading } = useLocations();
   const [imageLoading, setImageLoading] = useState(true);
@@ -26,7 +34,7 @@ const LocationCard: React.FC<LocationCardProps> = ({ location, variant = 'medium
     )}>
       <div className="relative">
         <img 
-          src={location.image} 
+          src={location.image || mockImages[parseInt(location.id, 10) % mockImages.length]} 
           alt={location.name}
           className={cn(
             "w-full object-cover transition-transform duration-300 group-hover:scale-105",
