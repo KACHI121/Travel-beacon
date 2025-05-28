@@ -122,7 +122,7 @@ export class FavoritesService {
     try {
       const { data: existingFavorite, error: selectError } = await supabase
         .from('favorites')
-        .select()
+        .select('user_id,location_id')
         .eq('user_id', userId)
         .eq('location_id', locationId)
         .single();
