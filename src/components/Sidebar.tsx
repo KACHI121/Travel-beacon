@@ -26,9 +26,9 @@ const Sidebar = () => {
     <div className="h-screen w-20 md:w-64 bg-white border-r shadow-sm flex flex-col fixed left-0 top-0">
       <div className="p-4 flex items-center justify-center md:justify-start">
         <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center text-white font-bold text-xl">
-          W
+          I
         </div>
-        <h1 className="ml-2 font-bold text-xl hidden md:block">WanderMate</h1>
+        <h1 className="ml-2 font-bold text-xl hidden md:block">iguide</h1>
       </div>
       
       <nav className="mt-8 flex-grow">

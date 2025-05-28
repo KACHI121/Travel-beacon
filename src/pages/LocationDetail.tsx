@@ -18,6 +18,11 @@ import ReviewCard from '@/components/ReviewCard';
 import ReviewList from '@/components/ReviewList';
 import { useReviews } from '@/hooks/useReviews';
 import RatingCard from '@/components/RatingCard';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { LocationService } from '@/services/LocationService';
+import { UserCoordinates } from '@/types';
 
 type PaymentMethod = "credit_card" | "paypal" | "bank_transfer";
 
@@ -34,15 +39,17 @@ const LocationDetail = () => {
   const { locations, addBooking } = useLocations();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  
+
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [guests, setGuests] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("credit_card");
   const [activeTab, setActiveTab] = useState("details");
-  
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+  const [route, setRoute] = useState<[number, number][] | null>(null);
+
   // Ensure location details are displayed correctly
-  const location = locations.find(loc => loc.id === Number(locationId));
+  const location = locations.find(loc => loc.id === locationId);
 
   // Import and use the `useReviews` hook to fix undefined variables
   const { reviews, isLoading: reviewsLoading, addReview, toggleLike } = useReviews(Number(locationId));
@@ -52,6 +59,47 @@ const LocationDetail = () => {
       navigate('/explore');
     }
   }, [location, navigate]);
+
+  // Fetch user location
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      const locationService = LocationService.getInstance();
+      try {
+        const coords = await locationService.getCurrentPosition();
+        setUserLocation(coords);
+      } catch (error) {
+        console.error('Error fetching user location:', error);
+      }
+    };
+
+    fetchUserLocation();
+  }, []);
+
+  // Fetch route when user location and destination are available
+  useEffect(() => {
+    if (userLocation && location?.coordinates) {
+      const fetchRoute = async () => {
+        try {
+          // Using OpenStreetMap's OSRM demo server for routing
+          const response = await fetch(
+            `http://router.project-osrm.org/route/v1/driving/${userLocation.longitude},${userLocation.latitude};${location.coordinates.longitude},${location.coordinates.latitude}?overview=full&geometries=geojson`
+          );
+          const data = await response.json();
+
+          if (data.routes && data.routes.length > 0) {
+            const geojsonRoute = data.routes[0].geometry;
+            // OSRM returns [longitude, latitude], Leaflet expects [latitude, longitude]
+            const routeCoordinates = geojsonRoute.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+            setRoute(routeCoordinates);
+          }
+        } catch (error) {
+          console.error('Error fetching route:', error);
+        }
+      };
+
+      fetchRoute();
+    }
+  }, [userLocation, location?.coordinates]);
 
   if (!location) {
     return (
@@ -105,7 +153,7 @@ const LocationDetail = () => {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      
+
       <div className="flex-1 ml-20 md:ml-64">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="flex flex-col md:flex-row items-start justify-between mb-6">
@@ -126,9 +174,9 @@ const LocationDetail = () => {
                 )}
               </div>
             </div>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={() => navigate(-1)}
               className="mt-4 md:mt-0"
             >
@@ -182,6 +230,34 @@ const LocationDetail = () => {
                     </div>
                   </div>
                   
+                  {/* Map */}
+                  {location.coordinates && (
+                    <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                      <h2 className="text-xl font-bold mb-4">Location Map</h2>
+                      <div style={{ height: '400px', width: '100%' }}>
+                        <MapContainer center={[location.coordinates.latitude, location.coordinates.longitude]} zoom={13} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
+                          <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          />
+                          <Marker position={[location.coordinates.latitude, location.coordinates.longitude]}>
+                            <Popup>
+                              {location.name}
+                            </Popup>
+                          </Marker>
+                          {userLocation && (
+                            <Marker position={[userLocation.latitude, userLocation.longitude]}>
+                              <Popup>Your Location</Popup>
+                            </Marker>
+                          )}
+                           {route && (
+                            <Polyline positions={route} color="blue" />
+                          )}
+                        </MapContainer>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Preview of Reviews */}
                   <div className="bg-white p-6 rounded-lg shadow-md mb-8">
                     <div className="flex justify-between items-center mb-4">
