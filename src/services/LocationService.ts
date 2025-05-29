@@ -253,41 +253,41 @@ export class LocationService {
       if (placeType === 'hotel' || placeType === 'lodge') {
         amenityQuery = `
           // Hotels and resorts
-          node["tourism"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["tourism"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          node["tourism"="resort"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["tourism"="resort"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="resort"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="resort"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           
           // Lodges and guest houses
-          node["tourism"="guest_house"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["tourism"="guest_house"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          node["tourism"="hostel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["tourism"="hostel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="guest_house"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="guest_house"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="hostel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="hostel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           
           // Additional accommodation types
-          node["building"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["building"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["building"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["building"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       } else if (placeType === 'restaurant') {
         amenityQuery = `
           // Restaurants
-          node["amenity"="restaurant"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["amenity"="restaurant"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["amenity"="restaurant"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="restaurant"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           
           // Cafes and dining places
-          node["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["amenity"="cafe"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="cafe"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       } else if (placeType === 'fast_food') {
         amenityQuery = `
           // Fast food places
-          node["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["amenity"="fast_food"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="fast_food"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       } else {
         amenityQuery = `
-          node["amenity"="${placeType}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["amenity"="${placeType}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["amenity"="${placeType}"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="${placeType}"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       }
 
