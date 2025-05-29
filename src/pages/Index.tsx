@@ -7,41 +7,11 @@ import { Button } from "@/components/ui/button";
 import { useLocations } from '../contexts/LocationContext';
 import LocationCard from '../components/LocationCard';
 import { getCurrentPosition, getNearestLocations } from '../utils/geolocation';
-import { UserCoordinates, Location, MockReview } from '../types';
+import { UserCoordinates, Location } from '../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Map, Calendar, Star } from 'lucide-react';
-
-const mockReviews: MockReview[] = [
-  {
-    id: 1,
-    name: 'Emily Johnson',
-    avatar: 'https://randomuser.me/api/portraits/women/12.jpg',
-    date: '2 days ago',
-    rating: 5,
-    comment: 'Absolutely amazing place! The views were breathtaking and the service was top-notch. Will definitely come back!',
-    likes: 24,
-    isLiked: true
-  },
-  {
-    id: 2,
-    name: 'Michael Rodriguez',
-    avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
-    date: '1 week ago',
-    rating: 4,
-    comment: 'Great location and friendly staff. The room was spacious and clean. Only downside was the Wi-Fi connection.',
-    likes: 8
-  },
-  {
-    id: 3,
-    name: 'Sarah Kim',
-    avatar: 'https://randomuser.me/api/portraits/women/45.jpg',
-    date: '2 weeks ago',
-    rating: 5,
-    comment: 'This place exceeded all my expectations! The food was delicious and the activities were well organized.',
-    likes: 15
-  }
-];
+import { useFetchReviews } from '../hooks/useFetchReviews';
 
 const Index = () => {
   const { locations } = useLocations();
@@ -50,6 +20,9 @@ const Index = () => {
   const [nearestLocations, setNearestLocations] = useState<Location[]>([]);
   const lodges = locations.filter(location => location.type === 'lodge').slice(0, 3);
   const restaurants = locations.filter(location => location.type === 'restaurant').slice(0, 3);
+
+  // Fetch recent reviews from all locations (limit to 5 for home page)
+  const { reviews: recentReviews, isLoading: reviewsLoading } = useFetchReviews(undefined); // undefined means fetch all
 
   useEffect(() => {
     const fetchUserLocation = async () => {
@@ -81,7 +54,11 @@ const Index = () => {
           <div className="bg-gradient-to-r from-primary/90 to-primary/60 rounded-xl p-8 mb-8 text-white shadow-lg">
             <div className="max-w-2xl">
               <h1 className="text-4xl font-bold mb-4">
-                Welcome {user ? `back, ${user.name}` : 'to WanderMate'}!
+                {user ? (
+                  <>Welcome back, <span className="text-primary">{user.name}</span>!</>
+                ) : (
+                  <>Welcome to <span className="text-primary">iguide</span>!</>
+                )}
               </h1>
               <p className="text-lg opacity-90 mb-6">
                 Your personal travel companion to discover amazing lodges and restaurants. 
@@ -157,13 +134,13 @@ const Index = () => {
             
             {/* Reviews List - Right */}
             <div className="lg:col-span-2 fade-in">
-              <ReviewCard reviews={mockReviews} />
+              <ReviewCard reviews={recentReviews.slice(0, 5)} isLoading={reviewsLoading} />
             </div>
           </div>
           
           {/* App Features */}
           <div className="mt-16 mb-10">
-            <h2 className="text-2xl font-bold text-center mb-10">What WanderMate Offers</h2>
+            <h2 className="text-2xl font-bold text-center mb-10">What iguide Offers</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="bg-white p-6 rounded-lg shadow text-center">
@@ -205,12 +182,12 @@ const Index = () => {
           <div className="text-gray-600 text-sm text-center md:text-left">
             &copy; {new Date().getFullYear()} iguide. All rights reserved.
           </div>
-          <div className="flex flex-wrap gap-4 items-center justify-center">
-            <Link to="/about" className="text-gray-600 hover:text-primary text-sm">About Us</Link>
-            <a href="mailto:support@iguide.com" className="text-gray-600 hover:text-primary text-sm">Contact</a>
-            <a href="/privacy" className="text-gray-600 hover:text-primary text-sm">Privacy Policy</a>
-            <a href="/terms" className="text-gray-600 hover:text-primary text-sm">Terms of Service</a>
-            <a href="https://github.com/KACHI121/Travel-beacon.git" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-primary flex items-center text-sm">
+          <div className="flex flex-wrap gap-2 items-center justify-center">
+            <Link to="/about" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">About Us</Link>
+            <a href="mailto:support@iguide.com" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Contact</a>
+            <a href="/privacy" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Privacy Policy</a>
+            <a href="/terms" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Terms of Service</a>
+            <a href="https://github.com/KACHI121/Travel-beacon.git" target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20 flex items-center">
               <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.262.82-.582 0-.288-.012-1.243-.018-2.252-3.338.726-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.606-2.665-.304-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.236-3.22-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23a11.5 11.5 0 013.003-.404c1.02.005 2.047.138 3.003.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.873.12 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.803 5.624-5.475 5.92.43.37.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.218.698.825.58C20.565 21.796 24 17.297 24 12c0-6.63-5.37-12-12-12z"/></svg>
               GitHub
             </a>

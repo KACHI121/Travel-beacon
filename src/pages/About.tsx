@@ -1,8 +1,48 @@
 import React from 'react';
 
 const About = () => (
-  <div className="max-w-3xl mx-auto py-12 px-4">
-    <h1 className="text-4xl font-bold mb-6">About iguide</h1>
+  <div className="max-w-4xl mx-auto py-12 px-4">
+    <h1 className="text-4xl font-bold mb-8 text-center">About iguide</h1>
+    <p className="text-lg text-gray-700 mb-10 text-center">
+      iguide is built by a passionate team dedicated to making travel discovery and booking seamless for everyone.
+    </p>
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 justify-center mb-12">
+      {/* Team Member 1 */}
+      <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+        <img src="https://randomuser.me/api/portraits/men/1.jpg" alt="Wallace Kachingwe" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+        <h3 className="font-bold text-lg mb-1">Wallace Kachingwe</h3>
+        <p className="text-primary font-medium mb-1">Fullstack Developer</p>
+        <p className="text-gray-500 text-sm text-center">Project Lead & Backend</p>
+      </div>
+      {/* Team Member 2 */}
+      <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+        <img src="https://randomuser.me/api/portraits/women/2.jpg" alt="Jane Banda" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+        <h3 className="font-bold text-lg mb-1">Jane Banda</h3>
+        <p className="text-primary font-medium mb-1">Frontend Developer</p>
+        <p className="text-gray-500 text-sm text-center">UI/UX & React</p>
+      </div>
+      {/* Team Member 3 */}
+      <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+        <img src="https://randomuser.me/api/portraits/men/3.jpg" alt="Chipo Mwale" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+        <h3 className="font-bold text-lg mb-1">Chipo Mwale</h3>
+        <p className="text-primary font-medium mb-1">Mobile Developer</p>
+        <p className="text-gray-500 text-sm text-center">React Native & Testing</p>
+      </div>
+      {/* Team Member 4 */}
+      <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+        <img src="https://randomuser.me/api/portraits/women/4.jpg" alt="Linda Zulu" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+        <h3 className="font-bold text-lg mb-1">Linda Zulu</h3>
+        <p className="text-primary font-medium mb-1">DevOps Engineer</p>
+        <p className="text-gray-500 text-sm text-center">Cloud & Deployment</p>
+      </div>
+      {/* Team Member 5 */}
+      <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+        <img src="https://randomuser.me/api/portraits/men/5.jpg" alt="Gift Phiri" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+        <h3 className="font-bold text-lg mb-1">Gift Phiri</h3>
+        <p className="text-primary font-medium mb-1">QA Engineer</p>
+        <p className="text-gray-500 text-sm text-center">Quality Assurance & Docs</p>
+      </div>
+    </div>
     <p className="mb-4 text-lg">
       <strong>iguide</strong> is your all-in-one travel companion, designed to help you discover, review, and book the best lodges and restaurants around the world. Our mission is to make travel planning seamless, social, and inspiring for everyone.
     </p>
