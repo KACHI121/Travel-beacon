@@ -11,6 +11,9 @@ import Favorites from "./pages/Favorites";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import LocationDetail from "./pages/LocationDetail";
+import About from "./pages/About";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import { LocationProvider } from "./contexts/LocationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LocationErrorBoundary } from "./components/LocationErrorBoundary";
@@ -92,6 +95,9 @@ const App = () => {
                         </LocationBoundaryWrapper>
                       </ProtectedRoute>
                     } />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </React.Suspense>

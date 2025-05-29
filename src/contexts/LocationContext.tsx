@@ -296,6 +296,14 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   const addBooking = async (booking: Omit<Booking, 'id'>) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to book a place",
+        variant: "default"
+      });
+      return;
+    }
     const newBooking = {
       ...booking,
       id: bookings.length > 0 ? Math.max(...bookings.map(b => b.id)) + 1 : 1,
@@ -304,7 +312,13 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     setBookings([...bookings, newBooking]);
     try {
       await saveBookingToDB(newBooking);
-    } catch {}
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: "Failed to save booking. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const cancelBooking = (bookingId: number) => {

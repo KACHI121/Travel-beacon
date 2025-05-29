@@ -1,10 +1,8 @@
-
 import React, { useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import ImageCarousel from '../components/ImageCarousel';
 import RatingCard from '../components/RatingCard';
 import ReviewCard from '../components/ReviewCard';
-import { Search, Calendar, Users, ChevronDown, Map, Star } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useLocations } from '../contexts/LocationContext';
 import LocationCard from '../components/LocationCard';
@@ -12,6 +10,7 @@ import { getCurrentPosition, getNearestLocations } from '../utils/geolocation';
 import { UserCoordinates, Location, MockReview } from '../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Map, Calendar, Star } from 'lucide-react';
 
 const mockReviews: MockReview[] = [
   {
@@ -96,40 +95,6 @@ const Index = () => {
                   How It Works
                 </Button>
               </div>
-            </div>
-          </div>
-          
-          {/* Search Section */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">Discover Your Next Adventure</h2>
-            
-            <div className="bg-white p-4 rounded-xl shadow-md flex flex-col md:flex-row gap-4">
-              <div className="flex-1 flex items-center border rounded-lg px-3 py-2">
-                <Search className="h-5 w-5 text-gray-400 mr-2" />
-                <input 
-                  type="text" 
-                  placeholder="Where do you want to go?" 
-                  className="w-full focus:outline-none"
-                />
-              </div>
-              
-              <div className="flex items-center border rounded-lg px-3 py-2">
-                <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-500">Check in - Check out</span>
-                  <ChevronDown className="h-4 w-4 text-gray-400 ml-2" />
-                </div>
-              </div>
-              
-              <div className="flex items-center border rounded-lg px-3 py-2">
-                <Users className="h-5 w-5 text-gray-400 mr-2" />
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-500">2 adults, 0 children</span>
-                  <ChevronDown className="h-4 w-4 text-gray-400 ml-2" />
-                </div>
-              </div>
-              
-              <Button className="md:w-auto">Search</Button>
             </div>
           </div>
           
@@ -234,6 +199,24 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      <footer className="bg-white border-t py-6 mt-12">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-gray-600 text-sm text-center md:text-left">
+            &copy; {new Date().getFullYear()} iguide. All rights reserved.
+          </div>
+          <div className="flex flex-wrap gap-4 items-center justify-center">
+            <Link to="/about" className="text-gray-600 hover:text-primary text-sm">About Us</Link>
+            <a href="mailto:support@iguide.com" className="text-gray-600 hover:text-primary text-sm">Contact</a>
+            <a href="/privacy" className="text-gray-600 hover:text-primary text-sm">Privacy Policy</a>
+            <a href="/terms" className="text-gray-600 hover:text-primary text-sm">Terms of Service</a>
+            <a href="https://github.com/KACHI121/Travel-beacon.git" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-primary flex items-center text-sm">
+              <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.262.82-.582 0-.288-.012-1.243-.018-2.252-3.338.726-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.606-2.665-.304-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.236-3.22-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23a11.5 11.5 0 013.003-.404c1.02.005 2.047.138 3.003.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.873.12 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.803 5.624-5.475 5.92.43.37.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.218.698.825.58C20.565 21.796 24 17.297 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

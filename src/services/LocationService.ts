@@ -259,16 +259,15 @@ export class LocationService {
         return 'restaurant';
     }
   }
+}
 
-  // Add these functions to persist bookings
-  async saveBookingToDB(booking) {
-    const { error } = await supabase.from('bookings').insert([booking]);
-    if (error) throw error;
-  }
+export async function saveBookingToDB(booking: any) {
+  const { error } = await supabase.from('bookings').insert([booking]);
+  if (error) throw error;
+}
 
-  async fetchBookingsFromDB(userId) {
-    const { data, error } = await supabase.from('bookings').select('*').eq('user_id', userId);
-    if (error) throw error;
-    return data;
-  }
+export async function fetchBookingsFromDB(userId: string) {
+  const { data, error } = await supabase.from('bookings').select('*').eq('user_id', userId);
+  if (error) throw error;
+  return data;
 }

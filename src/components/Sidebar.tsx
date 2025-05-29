@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Map, Calendar, Heart, LogIn, LogOut, User } from 'lucide-react';
+import { Home, Map, Calendar, Heart, LogIn, LogOut, User, Github } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ const Sidebar = () => {
     { icon: Map, label: 'Explore', href: '/explore' },
     { icon: Calendar, label: 'Bookings', href: '/bookings', requireAuth: true },
     { icon: Heart, label: 'Favorites', href: '/favorites', requireAuth: true },
+    { icon: Github, label: 'About', href: '/about' },
   ];
 
   const handleLogout = () => {
@@ -59,6 +60,18 @@ const Sidebar = () => {
       </nav>
       
       <div className="p-4 mt-auto">
+        <div className="flex flex-col gap-3">
+          <a
+            href="https://github.com/KACHI121/Travel-beacon.git"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-gray-600 hover:text-primary"
+            aria-label="GitHub Repository"
+          >
+            <Github className="h-5 w-5" />
+            <span className="hidden md:block">GitHub</span>
+          </a>
+        </div>
         {isAuthenticated ? (
           <div className="space-y-3">
             <div className="flex items-center p-2 rounded-lg bg-gray-50">
