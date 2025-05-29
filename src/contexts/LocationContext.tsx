@@ -73,15 +73,37 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       title: "Back Online",
       description: "Syncing your data...",
       variant: "default"
-    });
-
-    try {
+    });    try {
       const coordinates = await locationService.getCurrentPosition();
-      const restaurants = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'restaurant');
-      const hotels = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel');
-      const fastFood = await locationService.fetchNearbyPlacesFromOSM(coordinates, 'fast_food');
+      
+      // Fetch all location types in parallel
+      const [restaurants, hotels, lodges, fastFood] = await Promise.all([
+        locationService.fetchNearbyPlacesFromOSM(coordinates, 'restaurant'),
+        locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel'),
+        locationService.fetchNearbyPlacesFromOSM(coordinates, 'lodge'),
+        locationService.fetchNearbyPlacesFromOSM(coordinates, 'fast_food')
+      ]);
 
-      const fetchedLocations = [...restaurants, ...hotels, ...fastFood];
+      const fetchedLocations = [...restaurants, ...hotels, ...lodges, ...fastFood].filter(
+        location => location && location.name && location.coordinates
+      );
+
+      if (fetchedLocations.length === 0) {
+        toast({
+          title: "No Locations Found",
+          description: "Trying to fetch locations from backup sources...",
+          variant: "default"
+        });
+        
+        // Retry with increased radius
+        const [moreHotels, moreLodges] = await Promise.all([
+          locationService.fetchNearbyPlacesFromOSM(coordinates, 'hotel', 150000),
+          locationService.fetchNearbyPlacesFromOSM(coordinates, 'lodge', 150000)
+        ]);
+        
+        fetchedLocations.push(...moreHotels, ...moreLodges);
+      }
+
       setLocations(fetchedLocations);
 
       if (user) {
