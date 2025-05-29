@@ -180,26 +180,65 @@ export class LocationService {
     
     const locationsWithDistance = this.addDistanceToLocations(filteredLocations, userCoordinates);
     return this.sortLocationsByProximity(locationsWithDistance, userCoordinates).slice(0, limit);
-  }
-  async fetchNearbyPlacesFromOSM(
+  }  async fetchNearbyPlacesFromOSM(
     coordinates: UserCoordinates,
     placeType: string,
-    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 50000 : 5000 // 50km for hotels/lodges, 5km for others
+    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 100000 : 5000 // 100km for hotels/lodges, 5km for others
   ): Promise<Location[]> {
     try {
-      // Use Overpass API for more detailed POI data
       const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      let amenityQuery = '';
+      
+      if (placeType === 'hotel' || placeType === 'lodge') {
+        amenityQuery = `
+          // Hotels and resorts
+          node["tourism"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="resort"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="resort"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          
+          // Lodges and guest houses
+          node["tourism"="guest_house"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="guest_house"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          node["tourism"="hostel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["tourism"="hostel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          
+          // Additional accommodation types
+          node["building"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["building"="hotel"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+        `;
+      } else if (placeType === 'restaurant') {
+        amenityQuery = `
+          // Restaurants
+          node["amenity"="restaurant"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="restaurant"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          
+          // Cafes and dining places
+          node["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          
+          // Fast food
+          node["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+        `;
+      } else {
+        amenityQuery = `
+          node["amenity"="${placeType}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+          way["amenity"="${placeType}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+        `;
+      }
+
       const query = `
         [out:json][timeout:25];
         (
-          node["amenity"="${placeType}"](around:${radius},${coordinates.latitude},${coordinates.longitude});
+          ${amenityQuery}
         );
         out body;
         >;
         out skel qt;
       `;
 
-      const response = await axios.post<OverpassResponse>(overpassUrl, query);
+      const response = await this.fetchWithRetry(overpassUrl, query);
       
       if (!response.data || !response.data.elements) {
         throw new Error('Invalid response from Overpass API');
@@ -245,19 +284,81 @@ export class LocationService {
   }
 
   private osmAmenityToLocationType(amenity: string): Location['type'] {
-    switch (amenity) {
-      case 'hotel':
-        return 'hotel';
-      case 'guest_house':
-      case 'hostel':
-        return 'lodge';
-      case 'restaurant':
-        return 'restaurant';
-      case 'fast_food':
-        return 'fast_food';
-      default:
-        return 'restaurant';
+    // Tourism types
+    if (['hotel', 'motel', 'resort'].includes(amenity)) {
+      return 'hotel';
     }
+    if (['guest_house', 'hostel'].includes(amenity)) {
+      return 'lodge';
+    }
+    // Dining types
+    if (amenity === 'restaurant') {
+      return 'restaurant';
+    }
+    if (amenity === 'fast_food') {
+      return 'fast_food';
+    }
+    // Default fallback
+    return 'restaurant';
+  }
+
+  private async fetchWithRetry(url: string, body: string, retries = 3): Promise<any> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axios.post(url, body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 15000
+        });
+        return response;
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+
+  private generateDescription(tags: Record<string, string | undefined>): string {
+    const type = tags.tourism || tags.amenity || 'place';
+    const style = tags.cuisine || tags.style || '';
+    const desc = tags.description || '';
+    
+    return desc || `A ${style} ${type} in ${tags['addr:city'] || 'Zambia'}. ${
+      tags.website ? `Visit us at ${tags.website}` : ''
+    }`.trim();
+  }
+
+  private generateRating(tags: Record<string, string | undefined>): number {
+    const rating = parseFloat(tags.rating || '');
+    if (!isNaN(rating) && rating >= 0 && rating <= 5) {
+      return rating;
+    }
+    return 3.5 + Math.random() * 1.3;
+  }
+
+  private getLocationImage(tags: Record<string, string | undefined>): string {
+    return tags.image || 
+           tags.photo || 
+           tags['image:url'] || 
+           '/placeholder.svg';
+  }
+
+  private extractAmenities(tags: Record<string, string | undefined>): string[] {
+    const amenities = [];
+    if (tags.wifi === 'yes') amenities.push('WiFi');
+    if (tags.parking === 'yes') amenities.push('Parking');
+    if (tags['air_conditioning'] === 'yes') amenities.push('AC');
+    if (tags.wheelchair === 'yes') amenities.push('Wheelchair Accessible');
+    return amenities;
+  }
+
+  private isValidLocation(location: Location): boolean {
+    return (
+      location.name.length > 0 &&
+      location.coordinates.latitude !== 0 &&
+      location.coordinates.longitude !== 0 &&
+      !location.name.toLowerCase().includes('test') &&
+      !location.name.toLowerCase().includes('dummy')
+    );
   }
 }
 

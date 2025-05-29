@@ -15,26 +15,34 @@ interface Location {
 const locations: Location[] = [
   {
     id: 1,
-    name: "Tropical Paradise Resort",
-    location: "Bali, Indonesia",
-    image: "https://images.unsplash.com/photo-1500673922987-e212871fec22?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
-    price: "$120/night",
-    rating: 4.8
-  },
-  {
-    id: 2,
-    name: "Alpine Luxury Lodge",
-    location: "Swiss Alps, Switzerland",
-    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
-    price: "$210/night",
+    name: "Royal Livingstone Hotel",
+    location: "Livingstone, Zambia",
+    image: "https://images.unsplash.com/photo-1590073242678-70ee3fc28f8e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
+    price: "$450/night",
     rating: 4.9
   },
   {
+    id: 2,
+    name: "Thorntree River Lodge",
+    location: "Mosi-oa-Tunya National Park",
+    image: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
+    price: "$380/night",
+    rating: 4.8
+  },
+  {
     id: 3,
-    name: "Coastal Beach House",
-    location: "Amalfi Coast, Italy",
-    image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
-    price: "$180/night",
+    name: "Tongabezi Lodge",
+    location: "Victoria Falls, Zambia",
+    image: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
+    price: "$420/night",
+    rating: 4.9
+  },
+  {
+    id: 4,
+    name: "Kafunta River Lodge",
+    location: "South Luangwa National Park",
+    image: "https://images.unsplash.com/photo-1470290378698-263fa7ca60ab?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb",
+    price: "$350/night",
     rating: 4.7
   }
 ];

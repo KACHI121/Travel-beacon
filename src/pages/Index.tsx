@@ -43,12 +43,11 @@ const Index = () => {
     fetchUserLocation();
   }, [locations]);
   
-  return (
-    <div className="flex min-h-screen bg-gray-50">
+  return (    <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       
-      <div className="flex-1 ml-20 md:ml-64">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="flex-1 ml-20 md:ml-64 flex flex-col">
+        <div className="flex-1 max-w-7xl mx-auto px-4 py-8">
           
           {/* Welcome Section */}
           <div className="bg-gradient-to-r from-primary/90 to-primary/60 rounded-xl p-8 mb-8 text-white shadow-lg">
@@ -175,22 +174,75 @@ const Index = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      <footer className="bg-white border-t py-6 mt-12">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-gray-600 text-sm text-center md:text-left">
-            &copy; {new Date().getFullYear()} iguide. All rights reserved.
+      </div>      <footer className="bg-white border-t py-12 mt-auto w-full">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+            <div>
+              <h3 className="font-bold text-lg mb-4">About iguide</h3>
+              <p className="text-gray-600 text-sm">
+                Your trusted companion for discovering amazing lodges and restaurants across Zambia.
+                Making travel experiences unforgettable since 2024.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-4">Quick Links</h3>
+              <div className="flex flex-col space-y-2">
+                <Link to="/explore" className="text-gray-600 hover:text-primary text-sm">Explore</Link>
+                <Link to="/about" className="text-gray-600 hover:text-primary text-sm">About Us</Link>
+                <a href="mailto:support@iguide.com" className="text-gray-600 hover:text-primary text-sm">Contact</a>
+                <Link to="/favorites" className="text-gray-600 hover:text-primary text-sm">Favorites</Link>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-4">Legal</h3>
+              <div className="flex flex-col space-y-2">
+                <Link to="/privacy" className="text-gray-600 hover:text-primary text-sm">Privacy Policy</Link>
+                <Link to="/terms" className="text-gray-600 hover:text-primary text-sm">Terms of Service</Link>
+                <Link to="/about#faq" className="text-gray-600 hover:text-primary text-sm">FAQ</Link>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-lg mb-4">Connect With Us</h3>
+              <div className="flex flex-col space-y-2">
+                <a href="https://github.com/KACHI121/Travel-beacon.git" target="_blank" rel="noopener noreferrer" 
+                   className="text-gray-600 hover:text-primary text-sm flex items-center">
+                  <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.262.82-.582 0-.288-.012-1.243-.018-2.252-3.338.726-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.606-2.665-.304-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.236-3.22-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23a11.5 11.5 0 013.003-.404c1.02.005 2.047.138 3.003.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.873.12 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.803 5.624-5.475 5.92.43.37.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.218.698.825.58C20.565 21.796 24 17.297 24 12c0-6.63-5.37-12-12-12z"/>
+                  </svg>
+                  GitHub
+                </a>
+                <a href="https://twitter.com/iguide" target="_blank" rel="noopener noreferrer" 
+                   className="text-gray-600 hover:text-primary text-sm">Twitter</a>
+                <a href="https://linkedin.com/company/iguide" target="_blank" rel="noopener noreferrer" 
+                   className="text-gray-600 hover:text-primary text-sm">LinkedIn</a>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 items-center justify-center">
-            <Link to="/about" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">About Us</Link>
-            <a href="mailto:support@iguide.com" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Contact</a>
-            <a href="/privacy" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Privacy Policy</a>
-            <a href="/terms" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20">Terms of Service</a>
-            <a href="https://github.com/KACHI121/Travel-beacon.git" target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-md text-sm font-medium transition-colors bg-primary/5 text-primary hover:bg-primary/10 focus:bg-primary/20 focus:outline-none active:bg-primary/20 flex items-center">
-              <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.262.82-.582 0-.288-.012-1.243-.018-2.252-3.338.726-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.085 1.84 1.237 1.84 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.606-2.665-.304-5.466-1.332-5.466-5.93 0-1.31.468-2.38 1.236-3.22-.124-.303-.535-1.523.117-3.176 0 0 1.008-.322 3.3 1.23a11.5 11.5 0 013.003-.404c1.02.005 2.047.138 3.003.404 2.29-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.873.12 3.176.77.84 1.235 1.91 1.235 3.22 0 4.61-2.803 5.624-5.475 5.92.43.37.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.218.698.825.58C20.565 21.796 24 17.297 24 12c0-6.63-5.37-12-12-12z"/></svg>
-              GitHub
-            </a>
+          
+          <div className="border-t pt-8">
+            <div className="flex flex-col items-center">
+              <div className="flex gap-6 mb-6">
+                {[
+                  { name: 'Team Lead', image: '/images/team/team-lead.svg' },
+                  { name: 'Frontend Dev', image: '/images/team/frontend-dev.svg' },
+                  { name: 'Backend Dev', image: '/images/team/backend-dev.svg' },
+                  { name: 'UI Designer', image: '/images/team/ui-designer.svg' },
+                  { name: 'Fullstack Dev', image: '/images/team/fullstack-dev.svg' }
+                ].map((member) => (
+                  <div key={member.name} className="flex flex-col items-center">
+                    <img 
+                      src={member.image} 
+                      alt={member.name} 
+                      className="w-10 h-10 rounded-full bg-gray-100"
+                    />
+                    <span className="text-xs text-gray-500 mt-1">{member.name}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-gray-600 text-sm text-center">
+                &copy; {new Date().getFullYear()} iguide. All rights reserved.
+              </div>
+            </div>
           </div>
         </div>
       </footer>
