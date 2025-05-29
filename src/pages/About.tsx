@@ -31,10 +31,10 @@ const About = () => (
               <h3 className="font-bold text-lg mb-1">Marvin Kalukwaya</h3>
               <p className="text-gray-500 text-sm mb-1">2300382</p>
               <p className="text-primary font-medium mb-1">Backend Developer</p>
-            </div>            {/* Team Member 4 */}
-            <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
-              <img src="/images/team/placeholder.svg" alt="Musama Idan" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
+            </div>            {/* Team Member 4 */}            <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">
+              <img src="/images/team/musama idan.jpg" alt="Musama Idan" className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-primary" />
               <h3 className="font-bold text-lg mb-1">Musama Idan</h3>
+              <p className="text-gray-500 text-sm mb-1">2300219</p>
               <p className="text-primary font-medium mb-1">Quality Assurance</p>
             </div>            {/* Team Member 5 */}
             <div className="flex flex-col items-center bg-white rounded-xl shadow p-6">

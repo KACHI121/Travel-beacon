@@ -1,4 +1,4 @@
-import { UserCoordinates, Location } from '@/types';
+import { UserCoordinates, Location, Booking } from '@/types';
 import axios from 'axios';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -31,7 +31,6 @@ interface OverpassResponse {
 export class LocationService {
   private static instance: LocationService;
   private cachedPosition: { coordinates: UserCoordinates; timestamp: number } | null = null;
-  private cachedLocations: { data: Location[]; timestamp: number } | null = null;
 
   private constructor() {}
 
@@ -183,7 +182,69 @@ export class LocationService {
   }  async fetchNearbyPlacesFromOSM(
     coordinates: UserCoordinates,
     placeType: string,
-    radius: number = placeType === 'hotel' || placeType === 'lodge' ? 100000 : 5000 // 100km for hotels/lodges, 5km for others
+    radius: number = this.getInitialRadius(placeType)
+  ): Promise<Location[]> {
+    try {
+      // Try with initial radius
+      let locations = await this.fetchPlacesWithRadius(coordinates, placeType, radius);
+      
+      // If no results found, try with increased radius
+      if (locations.length === 0) {
+        console.log(`No locations found within ${radius}m, increasing search radius...`);
+        const increasedRadius = radius * 2;
+        locations = await this.fetchPlacesWithRadius(coordinates, placeType, increasedRadius);
+        
+        // If still no results, try one final time with maximum radius
+        if (locations.length === 0) {
+          console.log(`No locations found within ${increasedRadius}m, trying maximum radius...`);
+          const maxRadius = this.getMaxRadius(placeType);
+          locations = await this.fetchPlacesWithRadius(coordinates, placeType, maxRadius);
+          
+          if (locations.length === 0) {
+            console.log(`No locations found within maximum radius of ${maxRadius}m`);
+          }
+        }
+      }
+
+      // Add distance information and sort by proximity
+      const locationsWithDistance = this.addDistanceToLocations(locations, coordinates);
+      return this.sortLocationsByProximity(locationsWithDistance, coordinates);
+    } catch (error) {
+      console.error('Error fetching from OpenStreetMap:', error);
+      return [];
+    }
+  }
+
+  private getInitialRadius(placeType: string): number {
+    switch (placeType) {
+      case 'hotel':
+      case 'lodge':
+        return 150000; // 150km for accommodations
+      case 'restaurant':
+      case 'fast_food':
+        return 10000;  // 10km for food places
+      default:
+        return 20000;  // 20km for other amenities
+    }
+  }
+
+  private getMaxRadius(placeType: string): number {
+    switch (placeType) {
+      case 'hotel':
+      case 'lodge':
+        return 300000; // 300km for accommodations
+      case 'restaurant':
+      case 'fast_food':
+        return 50000;  // 50km for food places
+      default:
+        return 100000; // 100km for other amenities
+    }
+  }
+
+  private async fetchPlacesWithRadius(
+    coordinates: UserCoordinates,
+    placeType: string,
+    radius: number
   ): Promise<Location[]> {
     try {
       const overpassUrl = 'https://overpass-api.de/api/interpreter';
@@ -216,8 +277,10 @@ export class LocationService {
           // Cafes and dining places
           node["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["amenity"="cafe"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
-          
-          // Fast food
+        `;
+      } else if (placeType === 'fast_food') {
+        amenityQuery = `
+          // Fast food places
           node["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["amenity"="fast_food"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
@@ -241,11 +304,11 @@ export class LocationService {
       const response = await this.fetchWithRetry(overpassUrl, query);
       
       if (!response.data || !response.data.elements) {
-        throw new Error('Invalid response from Overpass API');
+        return [];
       }
 
       const locations: Location[] = response.data.elements
-        .filter(element => element.tags && element.tags.name) // Only include places with names
+        .filter(element => element.tags && element.tags.name)
         .map(element => ({
           id: element.id.toString(),
           name: element.tags.name!,
@@ -256,7 +319,6 @@ export class LocationService {
             latitude: element.lat,
             longitude: element.lon
           },
-          rating: parseFloat(element.tags.rating || '') || Math.random() * 2 + 3, // Random rating between 3-5
           image: element.tags.image || '/placeholder.svg',
           distance: this.calculateDistance(
             coordinates.latitude,
@@ -264,13 +326,17 @@ export class LocationService {
             element.lat,
             element.lon
           ),
+          rating: 0,
           isFavorite: false
         }));
 
-      // Filter locations within Zambia
-      return locations.filter(location => this.isWithinZambia(location.coordinates));
+      // Filter locations within Zambia and ensure they are valid
+      return locations.filter(location => 
+        this.isWithinZambia(location.coordinates) && 
+        this.isValidLocation(location)
+      );
     } catch (error) {
-      console.error('Error fetching from OpenStreetMap:', error);
+      console.error('Error fetching places with radius:', error);
       return [];
     }
   }
@@ -362,13 +428,47 @@ export class LocationService {
   }
 }
 
-export async function saveBookingToDB(booking: any) {
-  const { error } = await supabase.from('bookings').insert([booking]);
-  if (error) throw error;
+export async function saveBookingToDB(booking: Omit<Booking, 'id'> & { user_id: string }) {
+  try {
+    const { data, error } = await supabase.from('bookings').insert([{
+      ...booking,
+      startDate: booking.startDate.toISOString(),
+      endDate: booking.endDate.toISOString()
+    }]).select();
+    
+    if (error) throw error;
+    if (!data || data.length === 0) throw new Error('No data returned after insert');
+    
+    // Convert the dates back to Date objects
+    return {
+      ...data[0],
+      startDate: new Date(data[0].startDate),
+      endDate: new Date(data[0].endDate)
+    } as Booking;
+  } catch (error) {
+    console.error('Error saving booking:', error);
+    throw error;
+  }
 }
 
-export async function fetchBookingsFromDB(userId: string) {
-  const { data, error } = await supabase.from('bookings').select('*').eq('user_id', userId);
-  if (error) throw error;
-  return data;
+export async function fetchBookingsFromDB(userId: string): Promise<Booking[]> {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .order('startDate', { ascending: true });
+      
+    if (error) throw error;
+    
+    // Convert ISO date strings back to Date objects
+    return (data || []).map(booking => ({
+      ...booking,
+      startDate: new Date(booking.startDate),
+      endDate: new Date(booking.endDate)
+    })) as Booking[];
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    throw error;
+  }
 }

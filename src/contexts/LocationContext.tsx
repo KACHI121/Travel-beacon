@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Location, Booking } from '@/types';
-import { LocationService } from '@/services/LocationService';
+import { LocationService, saveBookingToDB, fetchBookingsFromDB } from '@/services/LocationService';
 import { FavoritesService } from '@/services/FavoritesService';
 import { OfflineHelper } from '@/utils/offline';
 import debounce from 'lodash/debounce';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from './AuthContext';
-import { saveBookingToDB, fetchBookingsFromDB } from '@/services/LocationService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LocationContextType {
   locations: Location[];
@@ -316,8 +316,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       setIsFavoriteLoading(false);
     }
   };
-
-  const addBooking = async (booking: Omit<Booking, 'id'>) => {
+  const addBooking = async (booking: Omit<Booking, 'id' | 'user_id'>) => {
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -326,25 +325,67 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       });
       return;
     }
-    const newBooking = {
-      ...booking,
-      id: bookings.length > 0 ? Math.max(...bookings.map(b => b.id)) + 1 : 1,
-      user_id: user.id
-    };
-    setBookings([...bookings, newBooking]);
+
     try {
-      await saveBookingToDB(newBooking);
-    } catch (e) {
+      const newBooking = {
+        ...booking,
+        user_id: user.id,
+        id: Date.now() // temporary ID before inserting
+      };
+
+      // Save to database first
+      const savedBooking = await saveBookingToDB(newBooking);
+      
+      // Only update local state if database save was successful
+      setBookings(prev => [...prev, savedBooking]);
+
       toast({
-        title: "Error",
+        title: "Booking Confirmed",
+        description: "Your booking has been successfully saved.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error saving booking:', error);
+      toast({
+        title: "Booking Failed",
         description: "Failed to save booking. Please try again.",
         variant: "destructive"
       });
     }
   };
+  const cancelBooking = async (bookingId: number) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to cancel a booking",
+        variant: "default"
+      });
+      return;
+    }
 
-  const cancelBooking = (bookingId: number) => {
-    setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .delete()
+        .match({ id: bookingId, user_id: user.id });
+
+      if (error) throw error;
+
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+
+      toast({
+        title: "Booking Cancelled",
+        description: "Your booking has been cancelled successfully.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel booking. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const value = {

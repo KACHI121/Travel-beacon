@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, MapPin, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Link } from 'react-router-dom';
 import { useLocations } from '@/contexts/LocationContext';
@@ -84,31 +83,25 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ maxItems = 5 }) => {
         <ChevronRight className="h-5 w-5" />
       </Button>
       
-      {/* Location Info Card */}      <div className="absolute bottom-6 left-6 right-6 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+      {/* Location Info Card */}
+      <div className="absolute bottom-6 left-6 right-6 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
         <div className="flex justify-between items-start">
-          <div>
+          <div className="flex-grow">
             <h2 className="text-xl font-bold">{currentLocation.name}</h2>
             <div className="flex items-center text-gray-600 mt-1">
               <MapPin className="h-4 w-4 mr-1" />
               <span className="text-sm">{currentLocation.address}</span>
             </div>
           </div>
-          <div className="text-right">
-            <div className="flex items-center">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-4 w-4 ${i < currentLocation.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                />
-              ))}
-            </div>
+          <div className="flex-shrink-0">
             <Link to={`/location/${currentLocation.id}`}>
               <Button className="mt-2" size="sm">View Details</Button>
             </Link>
           </div>
         </div>
       </div>
-        {/* Indicators */}
+      
+      {/* Indicators */}
       <div className="absolute bottom-24 left-0 right-0">
         <div className="flex justify-center gap-2">
           {featuredLocations.map((_, index) => (

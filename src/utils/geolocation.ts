@@ -1,21 +1,19 @@
 import axios from 'axios';
 import { UserCoordinates, Location } from '../types';
 
-interface GeolocationApiResponse {
-  latitude: number;
-  longitude: number;
-}
-
-interface NearbyLocation {
-  name: string;
-  coord: {
-    lat: number;
-    lon: number;
+interface OverpassElement {
+  id: number;
+  lat: number;
+  lon: number;
+  tags: {
+    name?: string;
+    amenity?: string;
+    [key: string]: string | undefined;
   };
 }
 
-interface NearbyLocationsApiResponse {
-  list: NearbyLocation[];
+interface OverpassResponse {
+  elements: OverpassElement[];
 }
 
 // Calculate distance between two coordinates using Haversine formula
@@ -32,8 +30,7 @@ export function calculateDistance(
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c; // Distance in km
-  return Math.round(distance * 10) / 10; // Round to 1 decimal place
+  return R * c; // Distance in km
 }
 
 // Get user's current location
@@ -57,7 +54,11 @@ export async function getCurrentPosition(): Promise<UserCoordinates> {
             longitude: 28.3228,
           });
         },
-        { timeout: 10000 } // 10s timeout
+        { 
+          timeout: 10000,
+          enableHighAccuracy: true,
+          maximumAge: 300000 // 5 minutes
+        }
       );
     } else {
       console.log('Browser geolocation not supported. Falling back to default location in Zambia.');
@@ -69,28 +70,77 @@ export async function getCurrentPosition(): Promise<UserCoordinates> {
   });
 }
 
-// Filter out locations that are not in Zambia
-export async function fetchNearbyLocations(latitude: number, longitude: number, type: string) {
-  const NOMINATIM_API_URL = `https://nominatim.openstreetmap.org/search?format=json&lat=${latitude}&lon=${longitude}&q=${type}&addressdetails=1&limit=10`;
+// Filter out locations that are not in Zambia using Overpass API
+export async function fetchNearbyLocations(coordinates: UserCoordinates, type: string, radius: number = 50000): Promise<Location[]> {
+  const overpassUrl = 'https://overpass-api.de/api/interpreter';
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["amenity"="${type}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+      way["amenity"="${type}"](area:3602093234)(around:${radius},${coordinates.latitude},${coordinates.longitude});
+    );
+    out body;
+    >;
+    out skel qt;
+  `;
+
   try {
-    const response = await axios.get(NOMINATIM_API_URL);
-    return (response.data as any[]).map((place: any) => ({
-      name: place.display_name,
-      latitude: parseFloat(place.lat),
-      longitude: parseFloat(place.lon),
-    })).filter(location => {
-      // Zambia's approximate latitude and longitude range
-      return location.latitude >= -18 && location.latitude <= -8 &&
-             location.longitude >= 22 && location.longitude <= 34;
+    const response = await axios.post<OverpassResponse>(overpassUrl, query, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 15000
     });
+
+    if (!response.data || !response.data.elements) {
+      return [];
+    }
+
+    return response.data.elements
+      .filter(element => element.tags && element.tags.name)
+      .map(element => ({
+        id: element.id.toString(),
+        name: element.tags.name!,
+        type: type as Location['type'],
+        description: element.tags.description || `A ${type} in Zambia`,
+        address: formatAddress(element.tags),
+        coordinates: {
+          latitude: element.lat,
+          longitude: element.lon
+        },
+        rating: parseFloat(element.tags.rating || '0') || 4,
+        image: element.tags.image || '/placeholder.svg',
+        distance: calculateDistance(
+          coordinates.latitude,
+          coordinates.longitude,
+          element.lat,
+          element.lon
+        ),
+        isFavorite: false
+      } satisfies Location))
+      .filter(location => 
+        location.coordinates.latitude >= -18 && 
+        location.coordinates.latitude <= -8 &&
+        location.coordinates.longitude >= 22 && 
+        location.coordinates.longitude <= 34
+      );
   } catch (error) {
-    console.error('Error fetching nearby locations from OpenStreetMap:', error);
+    console.error('Error fetching nearby locations:', error);
     return [];
   }
 }
 
+function formatAddress(tags: Record<string, string | undefined>): string {
+  const parts = [];
+  if (tags['addr:street']) parts.push(tags['addr:street']);
+  if (tags['addr:city']) parts.push(tags['addr:city']);
+  if (tags['addr:district']) parts.push(tags['addr:district']);
+  return parts.length > 0 ? parts.join(', ') : 'Zambia';
+}
+
 // Sort locations by proximity to user
-export function sortLocationsByProximity(locations: Location[], userCoordinates: UserCoordinates): Location[] {
+export function sortLocationsByProximity(
+  locations: Location[], 
+  userCoordinates: UserCoordinates
+): Location[] {
   return [...locations].sort((a, b) => {
     if (!a.coordinates || !b.coordinates) return 0;
     
@@ -113,7 +163,10 @@ export function sortLocationsByProximity(locations: Location[], userCoordinates:
 }
 
 // Function to update locations with distance from user
-export function addDistanceToLocations(locations: Location[], userCoordinates: UserCoordinates): Location[] {
+export function addDistanceToLocations(
+  locations: Location[], 
+  userCoordinates: UserCoordinates
+): Location[] {
   return locations.map(location => {
     if (location.coordinates) {
       const distance = calculateDistance(
