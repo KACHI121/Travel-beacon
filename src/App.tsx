@@ -60,7 +60,7 @@ const App = () => {
                   fallback={
                     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
                       <Spinner className="w-12 h-12 text-primary mb-4" />
-                      <p className="text-gray-600 text-sm">Loading WanderMate...</p>
+                      <p className="text-gray-600 text-sm">Loading iguide...</p>
                     </div>
                   }
                 >

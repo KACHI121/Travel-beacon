@@ -161,16 +161,26 @@ const LocationDetail = () => {
               <h1 className="text-3xl font-bold">{location.name}</h1>
               <div className="flex items-center text-gray-600 mt-2">
                 <span className="px-2 py-1 bg-gray-200 rounded text-sm font-medium mr-2">
-                  {location.type === 'lodge' ? 'Lodge' : 'Restaurant'}
+                  {location.type === 'lodge' ? 'Lodge' : location.type === 'hotel' ? 'Hotel' : 'Restaurant'}
                 </span>
                 <span className="flex items-center">
                   <svg className="w-4 h-4 text-yellow-500 fill-current" viewBox="0 0 24 24">
                     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                   </svg>
-                  <span className="ml-1">{calculateAverageRating().toFixed(1)}</span>
+                  <span className="ml-1">{Number.isInteger(calculateAverageRating()) ? calculateAverageRating() : calculateAverageRating().toFixed(1)}</span>
                 </span>
                 {location.distance && (
                   <span className="ml-2">{location.distance} km away</span>
+                )}
+                {userLocation && location.coordinates && (
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&origin=${userLocation.latitude},${userLocation.longitude}&destination=${location.coordinates.latitude},${location.coordinates.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-4 px-3 py-1 rounded-md bg-primary/10 text-primary font-medium text-xs hover:bg-primary/20 transition-colors"
+                  >
+                    Get Directions
+                  </a>
                 )}
               </div>
             </div>

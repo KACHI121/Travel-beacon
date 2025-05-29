@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,7 +37,9 @@ const RatingCard: React.FC<RatingCardProps> = ({ rating, totalReviews }) => {
         <h3 className="text-lg font-semibold mb-2">Overall Rating</h3>
         <div className="flex items-center">
           <div className="flex mr-2">{stars}</div>
-          <span className="text-lg font-bold">{rating.toFixed(1)}</span>
+          <span className="text-lg font-bold">
+            {Number.isInteger(rating) ? rating : rating.toFixed(1)}
+          </span>
         </div>
         <div className="mt-2 text-sm text-gray-500">
           Based on {totalReviews} reviews

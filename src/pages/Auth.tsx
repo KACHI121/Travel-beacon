@@ -89,8 +89,8 @@ const Auth: React.FC = () => {
       <div className="w-full max-w-md">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">WanderMate</CardTitle>
-            <CardDescription>Login or signup to continue</CardDescription>
+            <CardTitle className="text-2xl font-bold">iguide</CardTitle>
+            <CardDescription>Login or sign up to continue with iguide</CardDescription>
           </CardHeader>
           <Tabs defaultValue="login">
             <TabsList className="grid grid-cols-2 w-full mb-4">
@@ -192,9 +192,15 @@ const Auth: React.FC = () => {
               </TabsContent>
             </CardContent>
           </Tabs>
-          <CardFooter className="flex justify-center text-sm text-gray-500 mt-2">
-            © WanderMate 2025. All rights reserved.
-          </CardFooter>
+          <CardFooter className="flex flex-col items-center text-sm text-gray-500 mt-2 gap-2">
+  <div>© iguide 2025. All rights reserved.</div>
+  <div className="flex flex-wrap gap-3 justify-center">
+    <a href="/about" className="hover:text-primary">About Us</a>
+    <a href="mailto:support@iguide.com" className="hover:text-primary">Contact</a>
+    <a href="/privacy" className="hover:text-primary">Privacy Policy</a>
+    <a href="/terms" className="hover:text-primary">Terms of Service</a>
+  </div>
+</CardFooter>
         </Card>
       </div>
     </div>

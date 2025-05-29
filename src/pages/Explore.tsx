@@ -30,7 +30,8 @@ const Explore = () => {
   const [filters, setFilters] = useState({ lodge: true, restaurant: true });
 
   // Filter locations by search and type
-  const filteredLocations = locations.filter(location => {    const matchesSearch = location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredLocations = locations.filter(location => {
+    const matchesSearch = location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       location.address.toLowerCase().includes(searchTerm.toLowerCase());
     // Check for accommodation types (lodge/hotel) or dining types (restaurant/fast_food)
     const matchesType =
