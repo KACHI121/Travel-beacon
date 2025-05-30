@@ -118,13 +118,13 @@ export class FavoritesService {
    * @param userId - The user's ID
    * @param locationId - The location ID to toggle
    * @returns The new favorite status
-   */  async toggleFavorite(userId: string, locationId: string): Promise<boolean> {
+   */  async toggleFavorite(userId: string, locationId: string | number): Promise<boolean> {
     try {
       const { data: existingFavorite, error: selectError } = await supabase
         .from('favorites')
         .select('user_id,location_id')
         .eq('user_id', userId)
-        .eq('location_id', locationId)
+        .eq('location_id', parseInt(locationId.toString()))
         .single();
 
       if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "not found" error
@@ -134,16 +134,15 @@ export class FavoritesService {
           .from('favorites')
           .delete()
           .eq('user_id', userId)
-          .eq('location_id', locationId);
+          .eq('location_id', parseInt(locationId.toString()));
 
         if (deleteError) throw deleteError;
         return false;
       } else {
         const { error: insertError } = await supabase
-          .from('favorites')
-          .insert([{ 
+          .from('favorites')          .insert([{ 
             user_id: userId, 
-            location_id: locationId 
+            location_id: parseInt(locationId.toString())
           }]);
 
         if (insertError) throw insertError;

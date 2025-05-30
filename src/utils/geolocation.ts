@@ -96,8 +96,7 @@ export async function fetchNearbyLocations(coordinates: UserCoordinates, type: s
 
     return response.data.elements
       .filter(element => element.tags && element.tags.name)
-      .map(element => ({
-        id: element.id.toString(),
+      .map(element => ({        id: element.id.toString(),
         name: element.tags.name!,
         type: type as Location['type'],
         description: element.tags.description || `A ${type} in Zambia`,
@@ -114,7 +113,10 @@ export async function fetchNearbyLocations(coordinates: UserCoordinates, type: s
           element.lat,
           element.lon
         ),
-        isFavorite: false
+        isFavorite: false,
+        capacity: parseInt(element.tags.rooms || element.tags.capacity || '10'),
+        amenities: element.tags.amenities ? element.tags.amenities.split(';') : undefined,
+        price_range: element.tags.price_range || 'moderate'
       } satisfies Location))
       .filter(location => 
         location.coordinates.latitude >= -18 && 

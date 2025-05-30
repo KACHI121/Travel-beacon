@@ -1,4 +1,4 @@
-import { UserCoordinates, Location, Booking } from '@/types';
+import { UserCoordinates, Location, Booking, BookingFormData, BookingDBPayload } from '@/types';
 import axios from 'axios';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -40,6 +40,14 @@ export class LocationService {
     }
     return this.instance;
   }
+
+  private isCacheValid(): boolean {
+    return (
+      this.cachedPosition !== null &&
+      Date.now() - this.cachedPosition.timestamp < CACHE_DURATION
+    );
+  }
+
   isWithinZambia(coordinates: UserCoordinates): boolean {
     return (
       coordinates.latitude >= ZAMBIA_BOUNDS.latitude.min &&
@@ -56,50 +64,12 @@ export class LocationService {
     };
   }
 
-  private isCacheValid(): boolean {
-    return (
-      this.cachedPosition !== null &&
-      Date.now() - this.cachedPosition.timestamp < CACHE_DURATION
-    );
-  }
-
-  async getCurrentPosition(): Promise<UserCoordinates> {
-    if (this.isCacheValid() && this.cachedPosition) {
-      return this.cachedPosition.coordinates;
-    }
-
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 10000,
-          maximumAge: CACHE_DURATION
-        });
-      });
-
-      const coordinates: UserCoordinates = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      };
-
-      // If user is outside Zambia, return Lusaka coordinates
-      if (!this.isWithinZambia(coordinates)) {
-        return this.getLusakaFallback();
-      }
-
-      this.cachedPosition = {
-        coordinates,
-        timestamp: Date.now()
-      };
-
-      return coordinates;
-    } catch (error) {
-      console.warn('Geolocation error:', error);
-      return this.getLusakaFallback();
-    }
+  private toRad(value: number): number {
+    return (value * Math.PI) / 180;
   }
 
   // Calculate distance between two points using Haversine formula
-  calculateDistance(
+  private calculateDistance(
     lat1: number,
     lon1: number,
     lat2: number,
@@ -118,11 +88,95 @@ export class LocationService {
     return R * c;
   }
 
-  private toRad(value: number): number {
-    return (value * Math.PI) / 180;
+  private osmAmenityToLocationType(amenity: string): Location['type'] {
+    // Tourism types
+    if (['hotel', 'motel', 'resort'].includes(amenity)) {
+      return 'hotel';
+    }
+    if (['guest_house', 'hostel'].includes(amenity)) {
+      return 'lodge';
+    }
+    // Dining types
+    if (amenity === 'restaurant') {
+      return 'restaurant';
+    }
+    if (amenity === 'fast_food') {
+      return 'fast_food';
+    }
+    // Default fallback
+    return 'restaurant';
   }
 
-  addDistanceToLocations(
+  private getInitialRadius(placeType: string): number {
+    switch (placeType) {
+      case 'hotel':
+      case 'lodge':
+        return 150000; // 150km for accommodations
+      case 'restaurant':
+      case 'fast_food':
+        return 10000;  // 10km for food places
+      default:
+        return 20000;  // 20km for other amenities
+    }
+  }
+
+  private getMaxRadius(placeType: string): number {
+    switch (placeType) {
+      case 'hotel':
+      case 'lodge':
+        return 300000; // 300km for accommodations
+      case 'restaurant':
+      case 'fast_food':
+        return 50000;  // 50km for food places
+      default:
+        return 100000; // 100km for other amenities
+    }
+  }
+
+  private formatOSMAddress(tags: Record<string, string | undefined>): string {
+    const parts = [];
+    if (tags['addr:street']) parts.push(tags['addr:street']);
+    if (tags['addr:city']) parts.push(tags['addr:city']);
+    if (tags['addr:district']) parts.push(tags['addr:district']);
+    return parts.length > 0 ? parts.join(', ') : 'Address not available';
+  }
+
+  private async fetchWithRetry(url: string, body: string, retries = 3): Promise<any> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axios.post(url, body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 15000
+        });
+        return response;
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+
+  private generateDescription(tags: Record<string, string | undefined>): string {
+    const type = tags.tourism || tags.amenity || 'place';
+    const style = tags.cuisine || tags.style || '';
+    const desc = tags.description || '';
+    
+    return desc || `A ${style} ${type} in ${tags['addr:city'] || 'Zambia'}. ${
+      tags.website ? `Visit us at ${tags.website}` : ''
+    }`.trim();
+  }
+
+  private isValidLocation(location: Location): boolean {
+    return (
+      location.name.length > 0 &&
+      location.coordinates.latitude !== 0 &&
+      location.coordinates.longitude !== 0 &&
+      !location.name.toLowerCase().includes('test') &&
+      !location.name.toLowerCase().includes('dummy')
+    );
+  }
+
+  private addDistanceToLocations(
     locations: Location[],
     userCoordinates: UserCoordinates
   ): Location[] {
@@ -165,36 +219,54 @@ export class LocationService {
     });
   }
 
-  getNearestLocations(
-    locations: Location[],
-    userCoordinates: UserCoordinates,
-    type?: 'lodge' | 'restaurant',
-    limit = 3
-  ): Location[] {
-    let filteredLocations = locations;
-    
-    if (type) {
-      filteredLocations = filteredLocations.filter(location => location.type === type);
+  async getCurrentPosition(): Promise<UserCoordinates> {
+    if (this.isCacheValid() && this.cachedPosition) {
+      return this.cachedPosition.coordinates;
     }
-    
-    const locationsWithDistance = this.addDistanceToLocations(filteredLocations, userCoordinates);
-    return this.sortLocationsByProximity(locationsWithDistance, userCoordinates).slice(0, limit);
-  }  async fetchNearbyPlacesFromOSM(
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 10000,
+          maximumAge: CACHE_DURATION
+        });
+      });
+
+      const coordinates: UserCoordinates = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+
+      // If user is outside Zambia, return Lusaka coordinates
+      if (!this.isWithinZambia(coordinates)) {
+        return this.getLusakaFallback();
+      }
+
+      this.cachedPosition = {
+        coordinates,
+        timestamp: Date.now()
+      };
+
+      return coordinates;
+    } catch (error) {
+      console.warn('Geolocation error:', error);
+      return this.getLusakaFallback();
+    }
+  }
+
+  async fetchNearbyPlacesFromOSM(
     coordinates: UserCoordinates,
-    placeType: string,
+    placeType: Location['type'],
     radius: number = this.getInitialRadius(placeType)
   ): Promise<Location[]> {
     try {
-      // Try with initial radius
       let locations = await this.fetchPlacesWithRadius(coordinates, placeType, radius);
       
-      // If no results found, try with increased radius
       if (locations.length === 0) {
         console.log(`No locations found within ${radius}m, increasing search radius...`);
         const increasedRadius = radius * 2;
         locations = await this.fetchPlacesWithRadius(coordinates, placeType, increasedRadius);
         
-        // If still no results, try one final time with maximum radius
         if (locations.length === 0) {
           console.log(`No locations found within ${increasedRadius}m, trying maximum radius...`);
           const maxRadius = this.getMaxRadius(placeType);
@@ -206,38 +278,11 @@ export class LocationService {
         }
       }
 
-      // Add distance information and sort by proximity
       const locationsWithDistance = this.addDistanceToLocations(locations, coordinates);
       return this.sortLocationsByProximity(locationsWithDistance, coordinates);
     } catch (error) {
       console.error('Error fetching from OpenStreetMap:', error);
       return [];
-    }
-  }
-
-  private getInitialRadius(placeType: string): number {
-    switch (placeType) {
-      case 'hotel':
-      case 'lodge':
-        return 150000; // 150km for accommodations
-      case 'restaurant':
-      case 'fast_food':
-        return 10000;  // 10km for food places
-      default:
-        return 20000;  // 20km for other amenities
-    }
-  }
-
-  private getMaxRadius(placeType: string): number {
-    switch (placeType) {
-      case 'hotel':
-      case 'lodge':
-        return 300000; // 300km for accommodations
-      case 'restaurant':
-      case 'fast_food':
-        return 50000;  // 50km for food places
-      default:
-        return 100000; // 100km for other amenities
     }
   }
 
@@ -252,35 +297,20 @@ export class LocationService {
       
       if (placeType === 'hotel' || placeType === 'lodge') {
         amenityQuery = `
-          // Hotels and resorts
           node["tourism"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["tourism"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           node["tourism"="resort"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["tourism"="resort"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          
-          // Lodges and guest houses
           node["tourism"="guest_house"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["tourism"="guest_house"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          node["tourism"="hostel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["tourism"="hostel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          
-          // Additional accommodation types
-          node["building"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["building"="hotel"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       } else if (placeType === 'restaurant') {
         amenityQuery = `
-          // Restaurants
           node["amenity"="restaurant"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["amenity"="restaurant"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          
-          // Cafes and dining places
-          node["amenity"="cafe"](around:${radius},${coordinates.latitude},${coordinates.longitude});
-          way["amenity"="cafe"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
       } else if (placeType === 'fast_food') {
         amenityQuery = `
-          // Fast food places
           node["amenity"="fast_food"](around:${radius},${coordinates.latitude},${coordinates.longitude});
           way["amenity"="fast_food"](around:${radius},${coordinates.latitude},${coordinates.longitude});
         `;
@@ -309,166 +339,124 @@ export class LocationService {
 
       const locations: Location[] = response.data.elements
         .filter(element => element.tags && element.tags.name)
-        .map(element => ({
-          id: element.id.toString(),
+        .map(element => ({          id: element.id.toString(),
           name: element.tags.name!,
           type: this.osmAmenityToLocationType(placeType),
-          description: element.tags.description || `A ${placeType} in ${element.tags['addr:city'] || 'Zambia'}`,
+          description: this.generateDescription(element.tags),
           address: this.formatOSMAddress(element.tags),
           coordinates: {
             latitude: element.lat,
             longitude: element.lon
           },
           image: element.tags.image || '/placeholder.svg',
-          distance: this.calculateDistance(
-            coordinates.latitude,
-            coordinates.longitude,
-            element.lat,
-            element.lon
-          ),
-          rating: 0,
-          isFavorite: false
+          rating: parseFloat(element.tags.rating || '0') || 3.5 + Math.random() * 1.3,
+          isFavorite: false,
+          capacity: parseInt(element.tags.rooms || element.tags.capacity || '10'),
+          amenities: element.tags.amenities ? element.tags.amenities.split(';') : undefined,
+          price_range: element.tags.price_range
         }));
 
-      // Filter locations within Zambia and ensure they are valid
       return locations.filter(location => 
         this.isWithinZambia(location.coordinates) && 
         this.isValidLocation(location)
       );
+
     } catch (error) {
       console.error('Error fetching places with radius:', error);
       return [];
     }
   }
 
-  private formatOSMAddress(tags: Record<string, string | undefined>): string {
-    const parts = [];
-    if (tags['addr:street']) parts.push(tags['addr:street']);
-    if (tags['addr:city']) parts.push(tags['addr:city']);
-    if (tags['addr:district']) parts.push(tags['addr:district']);
-    return parts.length > 0 ? parts.join(', ') : 'Address not available';
-  }
+  async saveBookingToDB(formData: BookingFormData, userId: string): Promise<Booking> {
+    try {      const dbData: BookingDBPayload = {
+        user_id: userId,
+        location_id: formData.location_id,
+        start_date: new Date(formData.startDate.setHours(0, 0, 0, 0)).toISOString(),
+        end_date: new Date(formData.endDate.setHours(23, 59, 59, 999)).toISOString(),
+        duration: formData.duration,
+        guests: formData.guests,
+        payment_method: formData.payment_method || 'credit_card',
+        status: 'pending',
+        payment_status: 'unpaid',
+        total_amount: formData.total_amount || 0
+      };
 
-  private osmAmenityToLocationType(amenity: string): Location['type'] {
-    // Tourism types
-    if (['hotel', 'motel', 'resort'].includes(amenity)) {
-      return 'hotel';
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert(dbData)
+        .select(`
+          *,
+          locations (
+            name,
+            type,
+            image
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('No data returned after insert');      return {
+        id: data.id,
+        user_id: data.user_id,
+        location_id: data.location_id,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        locationName: data.locations.name,
+        locationType: data.locations.type,
+        locationImage: data.locations.image,
+        startDate: new Date(data.start_date),
+        endDate: new Date(data.end_date),
+        duration: data.duration,
+        guests: data.guests,
+        payment_method: data.payment_method,
+        status: data.status,
+        payment_status: data.payment_status,
+        total_amount: data.total_amount
+      };
+    } catch (error) {
+      console.error('Error saving booking:', error);
+      throw error;
     }
-    if (['guest_house', 'hostel'].includes(amenity)) {
-      return 'lodge';
+  }
+
+  async fetchBookingsFromDB(userId: string): Promise<Booking[]> {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          locations (
+            name,
+            type,
+            image
+          )
+        `)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      if (!data) return [];      return data.map(record => ({
+        id: record.id,
+        user_id: record.user_id,
+        location_id: record.location_id,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        locationName: record.locations.name,
+        locationType: record.locations.type,
+        locationImage: record.locations.image,
+        startDate: new Date(record.start_date),
+        endDate: new Date(record.end_date),
+        duration: record.duration,
+        guests: record.guests,
+        payment_method: record.payment_method,
+        status: record.status,
+        payment_status: record.payment_status,
+        total_amount: record.total_amount
+      }));
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      throw error;
     }
-    // Dining types
-    if (amenity === 'restaurant') {
-      return 'restaurant';
-    }
-    if (amenity === 'fast_food') {
-      return 'fast_food';
-    }
-    // Default fallback
-    return 'restaurant';
-  }
-
-  private async fetchWithRetry(url: string, body: string, retries = 3): Promise<any> {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await axios.post(url, body, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          timeout: 15000
-        });
-        return response;
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-      }
-    }
-  }
-
-  private generateDescription(tags: Record<string, string | undefined>): string {
-    const type = tags.tourism || tags.amenity || 'place';
-    const style = tags.cuisine || tags.style || '';
-    const desc = tags.description || '';
-    
-    return desc || `A ${style} ${type} in ${tags['addr:city'] || 'Zambia'}. ${
-      tags.website ? `Visit us at ${tags.website}` : ''
-    }`.trim();
-  }
-
-  private generateRating(tags: Record<string, string | undefined>): number {
-    const rating = parseFloat(tags.rating || '');
-    if (!isNaN(rating) && rating >= 0 && rating <= 5) {
-      return rating;
-    }
-    return 3.5 + Math.random() * 1.3;
-  }
-
-  private getLocationImage(tags: Record<string, string | undefined>): string {
-    return tags.image || 
-           tags.photo || 
-           tags['image:url'] || 
-           '/placeholder.svg';
-  }
-
-  private extractAmenities(tags: Record<string, string | undefined>): string[] {
-    const amenities = [];
-    if (tags.wifi === 'yes') amenities.push('WiFi');
-    if (tags.parking === 'yes') amenities.push('Parking');
-    if (tags['air_conditioning'] === 'yes') amenities.push('AC');
-    if (tags.wheelchair === 'yes') amenities.push('Wheelchair Accessible');
-    return amenities;
-  }
-
-  private isValidLocation(location: Location): boolean {
-    return (
-      location.name.length > 0 &&
-      location.coordinates.latitude !== 0 &&
-      location.coordinates.longitude !== 0 &&
-      !location.name.toLowerCase().includes('test') &&
-      !location.name.toLowerCase().includes('dummy')
-    );
   }
 }
 
-export async function saveBookingToDB(booking: Omit<Booking, 'id'> & { user_id: string }) {
-  try {
-    const { data, error } = await supabase.from('bookings').insert([{
-      ...booking,
-      startDate: booking.startDate.toISOString(),
-      endDate: booking.endDate.toISOString()
-    }]).select();
-    
-    if (error) throw error;
-    if (!data || data.length === 0) throw new Error('No data returned after insert');
-    
-    // Convert the dates back to Date objects
-    return {
-      ...data[0],
-      startDate: new Date(data[0].startDate),
-      endDate: new Date(data[0].endDate)
-    } as Booking;
-  } catch (error) {
-    console.error('Error saving booking:', error);
-    throw error;
-  }
-}
 
-export async function fetchBookingsFromDB(userId: string): Promise<Booking[]> {
-  try {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('user_id', userId)
-      .order('startDate', { ascending: true });
-      
-    if (error) throw error;
-    
-    // Convert ISO date strings back to Date objects
-    return (data || []).map(booking => ({
-      ...booking,
-      startDate: new Date(booking.startDate),
-      endDate: new Date(booking.endDate)
-    })) as Booking[];
-  } catch (error) {
-    console.error('Error fetching bookings:', error);
-    throw error;
-  }
-}

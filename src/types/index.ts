@@ -14,11 +14,31 @@ export interface Location {
   image: string;
   distance?: number;
   isFavorite: boolean;
+  amenities?: string[];
+  price_range?: string;
+  capacity: number;
+}
+
+// Database booking type
+export interface BookingDBPayload {
+  user_id: string;
+  location_id: number;
+  start_date: string;
+  end_date: string;
+  duration: number;
+  guests: number;
+  payment_method?: 'credit_card' | 'paypal' | 'bank_transfer';
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  payment_status?: 'unpaid' | 'processing' | 'paid' | 'refunded';
+  total_amount?: number;
 }
 
 export interface Booking {
   id: number;
-  locationId: string;
+  user_id: string;
+  location_id: number;
+  created_at: string;
+  updated_at: string;
   locationName: string;
   locationType: Location['type'];
   locationImage: string;
@@ -26,6 +46,21 @@ export interface Booking {
   endDate: Date;
   duration: number;
   guests: number;
+  payment_method: 'credit_card' | 'paypal' | 'bank_transfer';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  payment_status: 'unpaid' | 'processing' | 'paid' | 'refunded';
+  total_amount: number;
+}
+
+// Type for booking form data
+export interface BookingFormData {
+  location_id: number;
+  startDate: Date;
+  endDate: Date;
+  duration: number;
+  guests: number;
+  payment_method?: BookingDBPayload['payment_method'];
+  total_amount?: number;
 }
 
 // Map the database schema type to the Review type for consistency

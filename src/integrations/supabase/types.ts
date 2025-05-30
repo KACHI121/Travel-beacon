@@ -41,6 +41,38 @@ export type Database = {
           likes?: number;
         };
       };
+      bookings: {
+        Row: {
+          id: number;
+          user_id: string;
+          location_id: number;
+          start_date: string;
+          end_date: string;
+          duration: number;
+          guests: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          location_id: number;
+          start_date: string;
+          end_date: string;
+          duration: number;
+          guests: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          location_id?: number;
+          start_date?: string;
+          end_date?: string;
+          duration?: number;
+          guests?: number;
+          created_at?: string;
+        };
+      };
     }
     Views: {
       [_ in never]: never
@@ -68,7 +100,7 @@ export type Tables<
   }
     ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never,
 > = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
   ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {

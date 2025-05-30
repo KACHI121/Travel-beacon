@@ -67,7 +67,7 @@ const PopularDestinations: React.FC = () => {
 				<h2 className="text-md font-semibold mb-2">Users</h2>
 				<ul className="text-sm">
 					{users?.map((user) => (
-						<li key={user.id} className="mb-1">
+						<li key={user.user_id} className="mb-1">
 							{user.name} ({user.email})
 						</li>
 					))}

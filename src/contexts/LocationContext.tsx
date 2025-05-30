@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { Location, Booking } from '@/types';
-import { LocationService, saveBookingToDB, fetchBookingsFromDB } from '@/services/LocationService';
+import { Location, Booking, BookingFormData } from '@/types';
+import { LocationService } from '@/services/LocationService';
 import { FavoritesService } from '@/services/FavoritesService';
 import { OfflineHelper } from '@/utils/offline';
 import debounce from 'lodash/debounce';
@@ -13,8 +13,8 @@ interface LocationContextType {
   favorites: Location[];
   bookings: Booking[];
   toggleFavorite: (locationId: string) => Promise<void>;
-  addBooking: (booking: Omit<Booking, 'id'>) => void;
-  cancelBooking: (bookingId: number) => void;
+  addBooking: (formData: BookingFormData) => Promise<Booking>;
+  cancelBooking: (bookingId: number) => Promise<void>;
   isLoading: boolean;
   isFavoriteLoading: boolean;
   isOutsideZambia: boolean;
@@ -248,10 +248,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   }, [user, favoritesService, locations]);
 
   useEffect(() => {
-    const loadBookings = async () => {
-      if (user) {
+    const loadBookings = async () => {      if (user) {
         try {
-          const bookingsFromDB = await fetchBookingsFromDB(user.user_id);
+          const bookingsFromDB = await locationService.fetchBookingsFromDB(user.user_id);
           setBookings(bookingsFromDB);
         } catch (e) {
           setBookings([]);
@@ -309,8 +308,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     } finally {
       setIsFavoriteLoading(false);
     }
-  };
-  const addBooking = async (booking: Omit<Booking, 'id' | 'user_id'>) => {
+  };  const addBooking = async (formData: BookingFormData) => {
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -321,14 +319,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     }
 
     try {
-      const newBooking = {
-        ...booking,
-        user_id: user.user_id,
-        id: Date.now() // temporary ID before inserting
-      };
-
-      // Save to database first
-      const savedBooking = await saveBookingToDB(newBooking);
+      const savedBooking = await LocationService.getInstance().saveBookingToDB(formData, user.user_id);
       
       // Only update local state if database save was successful
       setBookings(prev => [...prev, savedBooking]);
@@ -338,6 +329,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         description: "Your booking has been successfully saved.",
         variant: "default"
       });
+
+      return savedBooking;
     } catch (error) {
       console.error('Error saving booking:', error);
       toast({
@@ -345,6 +338,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         description: "Failed to save booking. Please try again.",
         variant: "destructive"
       });
+      throw error;
     }
   };
   const cancelBooking = async (bookingId: number) => {

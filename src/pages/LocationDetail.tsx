@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, addDays } from "date-fns";
+import { format, addDays, isSameDay, isWithinInterval, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +22,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { LocationService } from '@/services/LocationService';
-import { UserCoordinates } from '@/types';
+import { UserCoordinates, Location, BookingFormData } from '@/types';
 
 type PaymentMethod = "credit_card" | "paypal" | "bank_transfer";
 
@@ -43,11 +43,22 @@ const LocationDetail = () => {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [guests, setGuests] = useState(1);
+    // Peak periods and blackout dates
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("credit_card");
   const [activeTab, setActiveTab] = useState("details");
   const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
   const [route, setRoute] = useState<[number, number][] | null>(null);
-
+  const [isBookingLoading, setIsBookingLoading] = useState(false);
+  const [blackoutDates] = useState([
+    new Date(2025, 11, 25),  // Christmas Day
+    new Date(2025, 11, 31),  // New Year's Eve
+    new Date(2026, 0, 1),    // New Year's Day
+  ]);
+  const [peakPeriods] = useState([
+    { start: new Date(2025, 11, 20), end: new Date(2026, 0, 5) },  // Christmas/New Year
+    { start: new Date(2025, 3, 18), end: new Date(2025, 3, 22) },  // Easter
+    { start: new Date(2025, 6, 1), end: new Date(2025, 7, 31) },   // Summer
+  ]);
   // Ensure location details are displayed correctly
   const location = locations.find(loc => loc.id === locationId);
 
@@ -108,6 +119,43 @@ const LocationDetail = () => {
       </div>
     );
   }
+  const isDateBlocked = (date: Date) => {
+    const dayStart = startOfDay(date);
+    
+    // Check blackout dates
+    if (blackoutDates.some(blackoutDate => isSameDay(dayStart, blackoutDate))) {
+      return true;
+    }
+    
+    // Check if in maintenance period (first Monday of each month for hotels/lodges)
+    if (location?.type !== 'restaurant') {
+      const dayOfMonth = dayStart.getDate();
+      const dayOfWeek = dayStart.getDay();
+      if (dayOfMonth <= 7 && dayOfWeek === 1) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  const isPeakPeriod = (date: Date) => {
+    return peakPeriods.some(period => 
+      isWithinInterval(date, { start: period.start, end: period.end })
+    );
+  };
+
+  const calculateBaseRate = () => {
+    const baseRate = location?.type === 'lodge' ? 99 :
+                    location?.type === 'hotel' ? 75 : 45;
+    
+    // Apply peak period surcharge if applicable
+    if (startDate && isPeakPeriod(startDate)) {
+      return Math.round(baseRate * 1.25);  // 25% peak period surcharge
+    }
+    
+    return baseRate;
+  };
 
   const calculateDuration = () => {
     if (startDate && endDate) {
@@ -116,31 +164,110 @@ const LocationDetail = () => {
       return diffDays;
     }
     return 0;
+  };const validateBookingDates = () => {
+    if (!startDate || !endDate) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    // Check minimum notice period (24 hours for restaurants, 48 hours for hotels/lodges)
+    const minNoticePeriod = location.type === 'restaurant' ? 24 : 48;
+    const minNoticeDate = new Date(now.getTime() + (minNoticePeriod * 60 * 60 * 1000));
+    
+    if (start < minNoticeDate) {
+      toast({
+        title: "Invalid Check-in Date",
+        description: `Bookings require ${minNoticePeriod} hours advance notice`,
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    // Basic date validation
+    if (!(start >= now && end > start)) {
+      return false;
+    }
+
+    // Max booking duration based on location type
+    const maxDuration = location.type === 'lodge' ? 14 : location.type === 'hotel' ? 30 : 1;
+    const duration = calculateDuration();
+    if (duration > maxDuration) {
+      toast({
+        title: "Invalid Duration",
+        description: `Maximum stay for this ${location.type} is ${maxDuration} days`,
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
   };
 
-  const isBookingFormValid = startDate && endDate && guests > 0 && isAuthenticated;
+  const isBookingFormValid = validateBookingDates() && guests > 0 && isAuthenticated;
 
-  const handleBooking = () => {
-    if (isBookingFormValid) {
-      const duration = calculateDuration();
-      
-      addBooking({
-        locationId: location.id,
-        locationName: location.name,
-        locationType: location.type,
-        locationImage: location.image,
-        startDate: startDate!,
-        endDate: endDate!,
-        duration,
-        guests
-      });
-      
+  const handleBooking = async () => {
+    if (isBookingFormValid && startDate && endDate) {
+      try {
+        setIsBookingLoading(true);
+        const duration = calculateDuration();
+        const totalAmount = calculateDuration() * (calculateBaseRate() * guests);
+        
+        // Create booking with only the fields expected by BookingDBPayload
+        await addBooking({
+          location_id: parseInt(location.id),
+          startDate: new Date(startDate.setHours(0, 0, 0, 0)),
+          endDate: new Date(endDate.setHours(23, 59, 59, 999)),
+          duration,
+          guests,
+          payment_method: paymentMethod,
+          total_amount: totalAmount
+        });
+        
+        toast({
+          title: "Booking Confirmed!",
+          description: `You've successfully booked ${location.name} for ${duration} days.`,
+        });
+        
+        navigate('/bookings');
+      } catch (error) {
+        console.error('Booking error:', error);
+        let errorMessage = "There was an error while saving your booking.";
+        
+        if (error instanceof Error) {
+          if (error.message.includes('duplicate')) {
+            errorMessage = "You already have a booking for these dates.";
+          } else if (error.message.includes('overlapping')) {
+            errorMessage = "This location is already booked for these dates.";
+          } else if (error.message.includes('capacity')) {
+            errorMessage = "This location is fully booked for the selected dates.";
+          }
+        }
+        
+        toast({
+          title: "Booking Failed",
+          description: errorMessage + " Please try different dates or contact support.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsBookingLoading(false);
+      }
+    } else if (!isAuthenticated) {
       toast({
-        title: "Booking Confirmed!",
-        description: `You've successfully booked ${location.name} for ${duration} days.`,
+        title: "Authentication Required",
+        description: "Please sign in to make a booking",
+        variant: "destructive"
       });
-      
-      navigate('/bookings');
+    } else {
+      toast({
+        title: "Invalid Booking",
+        description: "Please select valid dates and number of guests",
+        variant: "destructive"
+      });
     }
   };
 
@@ -149,6 +276,7 @@ const LocationDetail = () => {
     const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
     return sum / reviews.length;
   };
+
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -316,6 +444,18 @@ const LocationDetail = () => {
               <div className="bg-white p-6 rounded-lg shadow-md sticky top-20">
                 <h2 className="text-xl font-bold mb-4">Book this {location.type}</h2>
                 
+                {/* Booking Policies */}
+                <div className="bg-blue-50 p-3 rounded-md mb-4">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Booking Policies</h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Check-in time: 2:00 PM</li>
+                    <li>• Check-out time: 11:00 AM</li>
+                    <li>• Maximum {location.type === 'lodge' ? '4' : location.type === 'hotel' ? '8' : '12'} guests per booking</li>
+                    <li>• Maximum stay: {location.type === 'lodge' ? '14' : location.type === 'hotel' ? '30' : '1'} days</li>
+                    <li>• Free cancellation up to 24 hours before check-in</li>
+                  </ul>
+                </div>
+                
                 {!isAuthenticated ? (
                   <div className="text-center py-6">
                     <p className="text-gray-600 mb-4">You need to be logged in to book this location</p>
@@ -330,6 +470,15 @@ const LocationDetail = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Check-in - Check-out
                       </label>
+                      {/* Show earliest available slot */}
+                      <p className="text-xs text-blue-600 mb-2">
+                        {(() => {
+                          const now = new Date();
+                          const minNoticePeriod = location.type === 'restaurant' ? 24 : 48;
+                          const firstAvailable = new Date(now.getTime() + (minNoticePeriod * 60 * 60 * 1000));
+                          return `First available ${location.type === 'restaurant' ? 'booking' : 'check-in'}: ${format(firstAvailable, "MMM dd, yyyy 'at' h:mm a")}`;
+                        })()}
+                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <Popover>
                           <PopoverTrigger asChild>
@@ -345,11 +494,21 @@ const LocationDetail = () => {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
+                            <CalendarComponent                              mode="single"
                               selected={startDate}
-                              onSelect={setStartDate}
-                              disabled={(date) => date < new Date()}
+                              onSelect={(date) => {
+                                setStartDate(date);
+                                // Clear end date if it's now invalid
+                                if (date && endDate && endDate <= date) {
+                                  setEndDate(undefined);
+                                }
+                              }}                              disabled={(date) => {
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const minNoticePeriod = location.type === 'restaurant' ? 24 : 48;
+                                const minNoticeDate = new Date(today.getTime() + (minNoticePeriod * 60 * 60 * 1000));
+                                return date < minNoticeDate || isDateBlocked(date);
+                              }}
                               initialFocus
                               className={cn("p-3 pointer-events-auto")}
                             />
@@ -371,11 +530,15 @@ const LocationDetail = () => {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
+                            <CalendarComponent                              mode="single"
                               selected={endDate}
                               onSelect={setEndDate}
-                              disabled={(date) => !startDate || date <= startDate || date < new Date()}
+                              disabled={(date) => {
+                                if (!startDate) return true;
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                return date < today || date <= startDate || isDateBlocked(date);
+                              }}
                               initialFocus
                               className={cn("p-3 pointer-events-auto")}
                             />
@@ -388,15 +551,21 @@ const LocationDetail = () => {
                     <div>
                       <label htmlFor="guests" className="block text-sm font-medium text-gray-700 mb-1">
                         Number of guests
-                      </label>
-                      <Input
+                      </label>                      <Input
                         type="number"
                         id="guests"
                         min={1}
-                        max={10}
+                        max={location.type === 'lodge' ? 4 : location.type === 'hotel' ? 8 : 12}
                         value={guests}
-                        onChange={(e) => setGuests(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={(e) => {
+                          const maxGuests = location.type === 'lodge' ? 4 : location.type === 'hotel' ? 8 : 12;
+                          const value = parseInt(e.target.value) || 1;
+                          setGuests(Math.min(Math.max(1, value), maxGuests));
+                        }}
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Maximum {location.type === 'lodge' ? '4' : location.type === 'hotel' ? '8' : '12'} guests allowed
+                      </p>
                     </div>
                     
                     {/* Payment Method */}
@@ -436,18 +605,36 @@ const LocationDetail = () => {
                     {startDate && endDate && (
                       <div className="border-t border-dashed pt-4 mt-4">
                         <h3 className="font-medium mb-2">Booking Summary</h3>
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between items-center">
+                            <span>Check-in:</span>
+                            <span className="font-medium">{format(startDate, "MMM dd, yyyy")}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Check-out:</span>
+                            <span className="font-medium">{format(endDate, "MMM dd, yyyy")}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
                             <span>Duration:</span>
-                            <span className="font-medium">{calculateDuration()} days</span>
+                            <span className="font-medium">{calculateDuration()} night{calculateDuration() > 1 ? 's' : ''}</span>
                           </div>
-                          <div className="flex justify-between">
+                          <div className="flex justify-between items-center">
                             <span>Guests:</span>
-                            <span className="font-medium">{guests}</span>
+                            <span className="font-medium">{guests} person{guests > 1 ? 's' : ''}</span>
                           </div>
-                          <div className="flex justify-between font-bold text-base mt-2">
-                            <span>Total:</span>
-                            <span>Kw{calculateDuration() * (location.type === 'lodge' ? 99 : 45)}</span>
+                          <div className="pt-2 space-y-1">
+                            <div className="flex justify-between items-center text-sm">
+                              <span>Rate per night:</span>
+                              <span>Kw{
+                                calculateBaseRate() * guests
+                              } × {guests} guests</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-base">
+                              <span>Total ({calculateDuration()} nights):</span>
+                              <span>Kw{calculateDuration() * (
+                                calculateBaseRate() * guests
+                              )}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -458,7 +645,7 @@ const LocationDetail = () => {
                       className="w-full mt-4"
                       disabled={!isBookingFormValid}
                     >
-                      Book Now
+                      {isBookingLoading ? 'Booking...' : 'Book Now'}
                     </Button>
                   </div>
                 )}

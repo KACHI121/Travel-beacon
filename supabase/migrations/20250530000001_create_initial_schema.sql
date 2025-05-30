@@ -1,11 +1,14 @@
-```sql
--- Enable UUID extension
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Enable PostGIS for geographic data
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS favorites;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS locations;
+DROP TABLE IF EXISTS users;
 
--- Create the locations table with geography support
+-- Create the locations table
 CREATE TABLE locations (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -28,17 +31,7 @@ CREATE TABLE locations (
   )
 );
 
--- Create index for spatial queries
-CREATE INDEX locations_coordinates_idx ON locations (latitude, longitude);
-
--- Enable Row Level Security (RLS) for locations
-ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
-
--- Policy for anonymous users to read locations
-CREATE POLICY "Allow public read access" ON locations
-  FOR SELECT USING (true);
-
--- Create the users table (extends Supabase Auth)
+-- Create the users table
 CREATE TABLE users (
   user_id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
   display_name VARCHAR(255),
@@ -52,16 +45,6 @@ CREATE TABLE users (
   last_login TIMESTAMP WITH TIME ZONE,
   CONSTRAINT email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
-
--- Enable Row Level Security (RLS) for users
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
--- Policies for user table
-CREATE POLICY "Users can read own profile" ON users
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own profile" ON users
-  FOR UPDATE USING (auth.uid() = user_id);
 
 -- Create the bookings table
 CREATE TABLE bookings (
@@ -82,26 +65,6 @@ CREATE TABLE bookings (
   CONSTRAINT valid_date_range CHECK (end_date > start_date)
 );
 
--- Create index for date range queries
-CREATE INDEX bookings_date_range_idx ON bookings USING btree (location_id, start_date, end_date);
-
--- Enable Row Level Security (RLS) for bookings
-ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
-
--- Policies for bookings table
-CREATE POLICY "Users can view own bookings" ON bookings
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create bookings" ON bookings
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own bookings" ON bookings
-  FOR UPDATE USING (auth.uid() = user_id)
-  WITH CHECK (status != 'completed');
-
-CREATE POLICY "Users can cancel own bookings" ON bookings
-  FOR DELETE USING (auth.uid() = user_id AND status = 'pending');
-
 -- Create the reviews table
 CREATE TABLE reviews (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -118,34 +81,6 @@ CREATE TABLE reviews (
   CONSTRAINT one_review_per_location_per_user UNIQUE (user_id, location_id)
 );
 
--- Create index for rating aggregation
-CREATE INDEX reviews_location_rating_idx ON reviews (location_id, rating);
-
--- Enable Row Level Security (RLS) for reviews
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-
--- Policies for reviews table
-CREATE POLICY "Anyone can read reviews" ON reviews
-  FOR SELECT USING (true);
-
-CREATE POLICY "Users can create reviews for completed bookings" ON reviews
-  FOR INSERT WITH CHECK (
-    auth.uid() = user_id AND
-    EXISTS (
-      SELECT 1 FROM bookings 
-      WHERE bookings.id = booking_id 
-      AND bookings.user_id = auth.uid() 
-      AND bookings.status = 'completed'
-    )
-  );
-
-CREATE POLICY "Users can update own reviews" ON reviews
-  FOR UPDATE USING (auth.uid() = user_id)
-  WITH CHECK (created_at + INTERVAL '24 hours' > CURRENT_TIMESTAMP);
-
-CREATE POLICY "Users can delete own reviews" ON reviews
-  FOR DELETE USING (auth.uid() = user_id);
-
 -- Create the favorites table
 CREATE TABLE favorites (
   id SERIAL PRIMARY KEY,
@@ -155,20 +90,39 @@ CREATE TABLE favorites (
   CONSTRAINT unique_favorite UNIQUE (user_id, location_id)
 );
 
--- Enable Row Level Security (RLS) for favorites
+-- Enable Row Level Security
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 
--- Policies for favorites table
-CREATE POLICY "Users can read own favorites" ON favorites
-  FOR SELECT USING (auth.uid() = user_id);
+-- Create policies
+CREATE POLICY "Allow public read access" ON locations FOR SELECT USING (true);
 
-CREATE POLICY "Users can add favorites" ON favorites
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can read own profile" ON users FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own profile" ON users FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can remove own favorites" ON favorites
-  FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own bookings" ON bookings FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create bookings" ON bookings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own bookings" ON bookings FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (status != 'completed');
+CREATE POLICY "Users can cancel own bookings" ON bookings FOR DELETE USING (auth.uid() = user_id AND status = 'pending');
 
--- Create function to update average rating when a review is added/updated/deleted
+CREATE POLICY "Anyone can read reviews" ON reviews FOR SELECT USING (true);
+CREATE POLICY "Users can create reviews for completed bookings" ON reviews FOR INSERT WITH CHECK (auth.uid() = user_id AND EXISTS (SELECT 1 FROM bookings WHERE bookings.id = booking_id AND bookings.user_id = auth.uid() AND bookings.status = 'completed'));
+CREATE POLICY "Users can update own reviews" ON reviews FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (created_at + INTERVAL '24 hours' > CURRENT_TIMESTAMP);
+CREATE POLICY "Users can delete own reviews" ON reviews FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can read own favorites" ON favorites FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can add favorites" ON favorites FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can remove own favorites" ON favorites FOR DELETE USING (auth.uid() = user_id);
+
+-- Create indexes
+CREATE INDEX locations_coordinates_idx ON locations (latitude, longitude);
+CREATE INDEX bookings_date_range_idx ON bookings (location_id, start_date, end_date);
+CREATE INDEX reviews_location_rating_idx ON reviews (location_id, rating);
+
+-- Create functions and triggers
 CREATE OR REPLACE FUNCTION update_location_rating()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -183,13 +137,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers to maintain average rating
-CREATE TRIGGER update_rating_on_review_change
-AFTER INSERT OR UPDATE OR DELETE ON reviews
-FOR EACH ROW
-EXECUTE FUNCTION update_location_rating();
-
--- Create function to check booking availability
 CREATE OR REPLACE FUNCTION check_booking_availability(
   p_location_id INTEGER,
   p_start_date TIMESTAMP WITH TIME ZONE,
@@ -201,48 +148,26 @@ DECLARE
   location_capacity INTEGER;
   existing_bookings INTEGER;
 BEGIN
-  -- Get location capacity
-  SELECT capacity INTO location_capacity
-  FROM locations
-  WHERE id = p_location_id;
-
-  -- Count overlapping bookings
+  SELECT capacity INTO location_capacity FROM locations WHERE id = p_location_id;
   SELECT COUNT(*) INTO existing_bookings
   FROM bookings
   WHERE location_id = p_location_id
     AND status IN ('confirmed', 'pending')
-    AND (
-      (start_date, end_date) OVERLAPS (p_start_date, p_end_date)
-    );
-
-  -- Check if booking is possible
+    AND ((start_date, end_date) OVERLAPS (p_start_date, p_end_date));
   RETURN existing_bookings = 0 AND p_guests <= location_capacity;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create a trigger function to check availability before booking
 CREATE OR REPLACE FUNCTION check_booking_before_insert()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NOT check_booking_availability(
-    NEW.location_id,
-    NEW.start_date,
-    NEW.end_date,
-    NEW.guests
-  ) THEN
+  IF NOT check_booking_availability(NEW.location_id, NEW.start_date, NEW.end_date, NEW.guests) THEN
     RAISE EXCEPTION 'Location is not available for the selected dates or guest count exceeds capacity';
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger for booking availability check
-CREATE TRIGGER check_booking_availability_trigger
-BEFORE INSERT ON bookings
-FOR EACH ROW
-EXECUTE FUNCTION check_booking_before_insert();
-
--- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -251,7 +176,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for updating updated_at timestamps
+-- Create triggers
+CREATE TRIGGER update_rating_on_review_change
+  AFTER INSERT OR UPDATE OR DELETE ON reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION update_location_rating();
+
+CREATE TRIGGER check_booking_availability_trigger
+  BEFORE INSERT ON bookings
+  FOR EACH ROW
+  EXECUTE FUNCTION check_booking_before_insert();
+
 CREATE TRIGGER update_locations_updated_at
   BEFORE UPDATE ON locations
   FOR EACH ROW
@@ -271,4 +206,3 @@ CREATE TRIGGER update_reviews_updated_at
   BEFORE UPDATE ON reviews
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
-```
