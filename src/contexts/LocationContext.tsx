@@ -104,10 +104,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         fetchedLocations.push(...moreHotels, ...moreLodges);
       }
 
-      setLocations(fetchedLocations);
-
-      if (user) {
-        const favoriteIds = await favoritesService.getFavorites(user.id);
+      setLocations(fetchedLocations);      if (user) {
+        const favoriteIds = await favoritesService.getFavorites(user.user_id);
         setFavorites(fetchedLocations.filter(loc => favoriteIds.includes(loc.id)));
       }
     } catch (error) {
@@ -205,17 +203,13 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       if (!user) {
         setFavorites([]);
         return;
-      }
-
-      try {
-        const favoriteIds = await favoritesService.getFavorites(user.id);
+      }      try {
+        const favoriteIds = await favoritesService.getFavorites(user.user_id);
         const favoritedLocations = locations.filter(loc => 
           favoriteIds.includes(loc.id)
         );
-        setFavorites(favoritedLocations);
-
-        const cleanup = await favoritesService.subscribeToFavorites(
-          user.id,
+        setFavorites(favoritedLocations);        const cleanup = await favoritesService.subscribeToFavorites(
+          user.user_id,
           async (locationId: string, isFavorite: boolean) => {
             setLocations(prevLocations =>
               prevLocations.map(location =>
@@ -257,7 +251,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     const loadBookings = async () => {
       if (user) {
         try {
-          const bookingsFromDB = await fetchBookingsFromDB(user.id);
+          const bookingsFromDB = await fetchBookingsFromDB(user.user_id);
           setBookings(bookingsFromDB);
         } catch (e) {
           setBookings([]);
@@ -281,7 +275,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
 
     setIsFavoriteLoading(true);
     try {
-      const newIsFavorite = await favoritesService.toggleFavorite(user.id, locationId);
+      const newIsFavorite = await favoritesService.toggleFavorite(user.user_id, locationId);
       
       setLocations(prevLocations =>
         prevLocations.map(location =>
@@ -329,7 +323,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     try {
       const newBooking = {
         ...booking,
-        user_id: user.id,
+        user_id: user.user_id,
         id: Date.now() // temporary ID before inserting
       };
 
@@ -367,7 +361,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       const { error } = await supabase
         .from('bookings')
         .delete()
-        .match({ id: bookingId, user_id: user.id });
+        .match({ id: bookingId, user_id: user.user_id });
 
       if (error) throw error;
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface User {
-  id: string;
+  user_id: string;
   email: string;
   name: string;
 }

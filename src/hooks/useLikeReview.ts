@@ -23,7 +23,7 @@ export const useLikeReview = (onSuccessCallback: () => void) => {
       const { data: existingLike, error: likeError } = await supabase
         .from('review_likes')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', user.user_id)
         .eq('review_id', reviewId);
 
       if (likeError) throw likeError;
@@ -40,7 +40,7 @@ export const useLikeReview = (onSuccessCallback: () => void) => {
         // Add like
         const { error: insertError } = await supabase
           .from('review_likes')
-          .insert([{ user_id: user.id, review_id: reviewId }]);
+          .insert([{ user_id: user.user_id, review_id: reviewId }]);
 
         if (insertError) throw insertError;
       }

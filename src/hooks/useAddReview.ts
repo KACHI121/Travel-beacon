@@ -24,7 +24,7 @@ export const useAddReview = (locationId: number, onSuccess: () => void) => {
       const { data: existingReview } = await supabase
         .from('reviews')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', user.user_id)
         .eq('location_id', locationId);
 
       if (existingReview && existingReview.length > 0) {
@@ -42,7 +42,7 @@ export const useAddReview = (locationId: number, onSuccess: () => void) => {
         // Create new review
         await supabase
           .from('reviews')
-          .insert([{ user_id: user.id, location_id: locationId, rating, comment }]);
+          .insert([{ user_id: user.user_id, location_id: locationId, rating, comment }]);
 
         toast({
           title: "Review submitted",

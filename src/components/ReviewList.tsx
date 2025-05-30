@@ -45,13 +45,12 @@ const ReviewList: React.FC<ReviewListProps> = ({
   };
   
   // Find the current user's review if it exists
-  const userReview = user ? reviews.find(review => review.user_id === user.id) : undefined;
+  const userReview = user ? reviews.find(review => review.user_id === user.user_id) : undefined;
   
   // Sort reviews to show user's review first, then by newest
   const sortedReviews = [...reviews].sort((a, b) => {
-    // Always show user's own review first
-    if (user && a.user_id === user.id) return -1;
-    if (user && b.user_id === user.id) return 1;
+    // Always show user's own review first    if (user && a.user_id === user.user_id) return -1;
+    if (user && b.user_id === user.user_id) return 1;
     
     // Otherwise sort by newest
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -123,7 +122,7 @@ const ReviewList: React.FC<ReviewListProps> = ({
                 key={review.id} 
                 className={cn(
                   "border-b border-gray-100 pb-6 last:border-b-0 last:pb-0",
-                  user && review.user_id === user.id && "bg-gray-50 -mx-6 px-6 py-4 border border-gray-100 rounded-lg"
+                  user && review.user_id === user.user_id && "bg-gray-50 -mx-6 px-6 py-4 border border-gray-100 rounded-lg"
                 )}
               >
                 <div className="flex items-start">
@@ -137,7 +136,7 @@ const ReviewList: React.FC<ReviewListProps> = ({
                       <div>
                         <h4 className="font-medium text-lg">
                           {review.user_name || "Anonymous"}
-                          {user && review.user_id === user.id && (
+                          {user && review.user_id === user.user_id && (
                             <span className="ml-2 text-xs bg-blue-100 text-blue-800 py-0.5 px-2 rounded-full">
                               You
                             </span>

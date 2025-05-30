@@ -221,10 +221,6 @@ const Index = () => {
                     </svg>
                     GitHub
                   </a>
-                  <a href="https://twitter.com/iguide" target="_blank" rel="noopener noreferrer" 
-                     className="text-gray-600 hover:text-primary text-sm">Twitter</a>
-                  <a href="https://linkedin.com/company/iguide" target="_blank" rel="noopener noreferrer" 
-                     className="text-gray-600 hover:text-primary text-sm">LinkedIn</a>
                 </div>
               </div>
             </div>
@@ -232,22 +228,20 @@ const Index = () => {
             <div className="border-t pt-8">
               <div className="flex flex-col items-center">
                 <div className="flex gap-6 mb-6">
-                  {[
+                  {/*
                     { name: 'Team Lead', image: '/images/team/team-lead.svg' },
                     { name: 'Frontend Dev', image: '/images/team/frontend-dev.svg' },
                     { name: 'Backend Dev', image: '/images/team/backend-dev.svg' },
                     { name: 'UI Designer', image: '/images/team/ui-designer.svg' },
                     { name: 'Fullstack Dev', image: '/images/team/fullstack-dev.svg' }
-                  ].map((member) => (
-                    <div key={member.name} className="flex flex-col items-center">
-                      <img 
-                        src={member.image} 
-                        alt={member.name} 
-                        className="w-10 h-10 rounded-full bg-gray-100"
-                      />
-                      <span className="text-xs text-gray-500 mt-1">{member.name}</span>
-                    </div>
-                  ))}
+                  */}
+                  {/*
+                    { name: 'Wallace Kachingwe', image: '/images/team/wallace kchingwe.jpg' },
+                    { name: 'Patrice Chifumbe', image: '/images/team/patrice chifumbe.jpg' },
+                    { name: 'Marvin Kalukwaya', image: '/images/team/marvin kalukwaya.jpg' },
+                    { name: 'Musama Idan', image: '/images/team/musama idan.jpg' },
+                    { name: 'Tapson Kayangwe', image: '/images/team/placeholder.svg' }
+                  */}
                 </div>
                 <div className="text-gray-600 text-sm text-center">
                   &copy; {new Date().getFullYear()} iguide. All rights reserved.

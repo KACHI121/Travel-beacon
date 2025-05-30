@@ -4,14 +4,14 @@ import { Spinner } from '@/components/ui/spinner';
 
 // Define user type
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
   name: string;
 }
 
 // Extend the User type to map Supabase user properties
 const mapSupabaseUserToUser = (supabaseUser: SupabaseUser): User => ({
-  id: supabaseUser.id,
+  user_id: supabaseUser.id,
   email: supabaseUser.email || '',
   name: supabaseUser.user_metadata?.name || 'Anonymous',
 });
@@ -88,11 +88,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
     if (error) throw new Error(error.message);
     if (data.user) {
-      setUser(mapSupabaseUserToUser(data.user));
-
-      // Save user info in the 'users' table
+      setUser(mapSupabaseUserToUser(data.user));      // Save user info in the 'users' table
       const { error: dbError } = await supabase.from('users').insert({
-        id: data.user.id,
+        user_id: data.user.id,
         email,
         name,
       });

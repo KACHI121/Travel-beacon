@@ -35,11 +35,10 @@ export const useFetchReviews = (locationId?: number) => {
       } as Review));
       
       if (user) {
-        try {
-          const { data: likedReviews, error: likedReviewsError } = await supabase
+        try {          const { data: likedReviews, error: likedReviewsError } = await supabase
             .from('review_likes')
             .select('review_id')
-            .eq('user_id', user.id);
+            .eq('user_id', user.user_id);
           if (likedReviewsError) throw likedReviewsError;
           const likedIds = (likedReviews || []).map(item => String(item.review_id));
           reviewsData = reviewsData.map(review => ({
