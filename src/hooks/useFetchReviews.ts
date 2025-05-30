@@ -18,20 +18,22 @@ export const useFetchReviews = (locationId?: number) => {
       // Fetch all reviews for this location, or all reviews if locationId is undefined
       let query = supabase
         .from('reviews')
-        .select('*')
+        .select('*, users(name, avatar_url)') // Select review fields and join with users table
         .order('created_at', { ascending: false });
       if (typeof locationId === 'number') {
         query = query.eq('location_id', locationId);
       }
       const { data, error: fetchError } = await query;
       if (fetchError) throw fetchError;
+      
       let reviewsData = (data || []).map(item => ({
         ...item,
         likes: item.likes || 0,
         isLiked: false,
-        user_name: 'Anonymous User',
-        user_avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_id}`
+        user_name: item.users?.name || 'Anonymous User', // Use fetched user name
+        user_avatar: item.users?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.user_id}` // Use fetched avatar or fallback
       } as Review));
+      
       if (user) {
         try {
           const { data: likedReviews, error: likedReviewsError } = await supabase
